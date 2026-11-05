@@ -1,0 +1,20 @@
+# Cloudflare Pages 响应头
+# 静态资源不带内容哈希，所以一律 must-revalidate：改版后用户刷新即可拿到新代码，
+# 又因为带 ETag，未改动时仍是 304，不会重复下载。
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/app.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/app.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/brand/*
+  Cache-Control: public, max-age=604800
