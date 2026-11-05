@@ -923,7 +923,7 @@
         <div class="content">
           <div class="col">
             ${e.icon ? `<div class="ico-box" style="border-color:${hexA(accent, 0.34)};background:${hexA(accent, 0.06)}">
-              <img src="${e.icon}" alt="">
+              <img src="${e.icon}" alt="" draggable="false">
             </div>` : ''}
             <div class="label" style="font-size:${clampNum(e.labelSize, 15, 8, 64)}px;color:${e.labelColor || '#d4d4d4'}">${esc(e.label || '')}</div>
           </div>
@@ -948,7 +948,7 @@
       const ss = clampNum(e.subSize, 15, 8, 72);
       n.innerHTML = `
         <div class="content">
-          ${e.icon ? `<img class="ico" src="${e.icon}" alt="">` : ''}
+          ${e.icon ? `<img class="ico" src="${e.icon}" alt="" draggable="false">` : ''}
           <div class="txt">
             <div class="title" style="font-size:${ts}px;color:${e.titleColor || '#f5f5f5'}">${esc(e.title || '')}</div>
             ${e.sub ? `<div class="sub" style="font-size:${ss}px;color:${e.subColor || '#a3a3a3'}">${esc(e.sub)}</div>` : ''}
@@ -1514,6 +1514,10 @@
     if (ev.ctrlKey || ev.metaKey) ev.preventDefault();
   });
 
+  // 画布里的图片（卡片/面板图标、自由图片）不参与浏览器原生拖拽：
+  // 兜底 CSS 的 pointer-events: none，防止将来加了新的 img 又把「拖图」带回来。
+  viewport.addEventListener('dragstart', (ev) => ev.preventDefault());
+
   // 连线模式下，鼠标经过的元素显示四个边锚点
   viewport.addEventListener('pointermove', (ev) => {
     if (tool !== 'arrow' || connect) return;
@@ -1952,13 +1956,54 @@
     bindInspector(e);
   }
 
+  // 数值输入：横排 [−][值][+]，替掉 number 输入框右侧自带的上下箭头。
+  // 输入框仍然是 type=number，原有的 data-k / data-m 校验、历史、重绘一律不动，
+  // 步进按钮只负责改 value 再把 input / change 派发出去。
+  function numField(k, value, opts) {
+    const o = opts || {};
+    const attr = [
+      o.m ? `data-m="${k}"` : `data-k="${k}"`,
+      `value="${value == null ? '' : value}"`,
+      o.min != null ? `min="${o.min}"` : '',
+      o.max != null ? `max="${o.max}"` : '',
+      `step="${o.step == null ? 1 : o.step}"`,
+      o.ph ? `placeholder="${o.ph}"` : '',
+    ].filter(Boolean).join(' ');
+    return `<span class="stepper">
+        <button type="button" class="step-btn" data-step="-1" tabindex="-1" aria-label="减小">−</button>
+        <input type="number" ${attr} />
+        <button type="button" class="step-btn" data-step="1" tabindex="-1" aria-label="增大">+</button>
+      </span>`;
+  }
+
+  function stepBy(btn) {
+    const inp = btn.parentElement && btn.parentElement.querySelector('input');
+    if (!inp) return;
+    const dir = Number(btn.dataset.step) || 1;
+    const step = Math.abs(Number(inp.step)) || 1;
+    const min = inp.min === '' ? -Infinity : Number(inp.min);
+    const max = inp.max === '' ? Infinity : Number(inp.max);
+    let v = Number(inp.value);
+    if (String(inp.value).trim() === '' || !Number.isFinite(v)) v = Number.isFinite(min) ? min : 0;
+    v = Math.min(max, Math.max(min, v + dir * step));
+    const dec = (String(step).split('.')[1] || '').length;   // 0.1 / 0.5 这类步长不要浮点尾巴
+    inp.value = String(Number(v.toFixed(dec)));
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // 一次性委托到检查器上：pointerdown 拦默认行为，免得点按钮把焦点从输入框抢走
+  inspector.addEventListener('pointerdown', (ev) => {
+    if (ev.target.closest && ev.target.closest('.step-btn')) ev.preventDefault();
+  });
+  inspector.addEventListener('click', (ev) => {
+    const btn = ev.target.closest && ev.target.closest('.step-btn');
+    if (btn) stepBy(btn);
+  });
+
   function whInputs(e) {
-    return `<div class="row"><label>位置</label>
-        <input type="number" data-k="x" value="${Math.round(e.x)}" />
-        <input type="number" data-k="y" value="${Math.round(e.y)}" /></div>
-      <div class="row"><label>尺寸</label>
-        <input type="number" data-k="w" value="${Math.round(e.w)}" />
-        <input type="number" data-k="h" value="${Math.round(e.h)}" /></div>`;
+    return `<div class="row"><label>位置</label>${numField('x', Math.round(e.x))}${numField('y', Math.round(e.y))}</div>
+      <div class="row"><label>尺寸</label>${numField('w', Math.round(e.w), { min: 20 })}${numField('h', Math.round(e.h), { min: 16 })}</div>`;
   }
 
   const ACCENTS = ['#a78bfa', '#38bdf8', '#34d399', '#fbbf24', '#94a3b8', '#fb7185'];
@@ -1974,7 +2019,7 @@
       const fa = Math.round((e.fillAlpha == null ? 0.72 : e.fillAlpha) * 100);
       body += `<div class="row"><label>标签</label><input type="text" data-k="label" value="${esc(e.label || '')}" /></div>
         <div class="row"><label>标签字</label>
-          <input type="number" data-k="labelSize" min="8" max="64" step="1" value="${clampNum(e.labelSize, 15, 8, 64)}" />
+          ${numField('labelSize', clampNum(e.labelSize, 15, 8, 64), { min: 8, max: 64 })}
           ${colorSwatch('labelColor', e.labelColor || '#d4d4d4')}</div>
         <div class="row"><label>强调色</label>${swatches(e.accent)}</div>
         <div class="row"><label>边框</label>${colorSwatch('stroke', e.stroke || hexA(accent, 0.6))}
@@ -1998,11 +2043,11 @@
       const accent = e.accent || '#7ea6ff';
       body += `<div class="row"><label>标题</label><input type="text" data-k="title" value="${esc(e.title || '')}" /></div>
         <div class="row"><label>标题字</label>
-          <input type="number" data-k="titleSize" min="8" max="96" step="1" value="${clampNum(e.titleSize, 23, 8, 96)}" />
+          ${numField('titleSize', clampNum(e.titleSize, 23, 8, 96), { min: 8, max: 96 })}
           ${colorSwatch('titleColor', e.titleColor || '#f5f5f5')}</div>
         <div class="row"><label>说明</label><input type="text" data-k="sub" value="${esc(e.sub || '')}" /></div>
         <div class="row"><label>说明字</label>
-          <input type="number" data-k="subSize" min="8" max="72" step="1" value="${clampNum(e.subSize, 15, 8, 72)}" />
+          ${numField('subSize', clampNum(e.subSize, 15, 8, 72), { min: 8, max: 72 })}
           ${colorSwatch('subColor', e.subColor || '#a3a3a3')}</div>
         <div class="row"><label>边框</label>${colorSwatch('stroke', e.stroke || hexA(accent, 0.5))}
           <label style="width:auto;flex:0 0 auto">背景</label>${colorSwatch('fill', e.fill || 'rgba(10,10,10,.55)')}</div>
@@ -2026,7 +2071,7 @@
     } else if (e.type === 'text') {
       body += `<div class="row" style="align-items:flex-start"><label>内容</label>
           <textarea data-k="text">${esc(e.text || '')}</textarea></div>
-        <div class="row"><label>字号</label><input type="number" data-k="size" value="${e.size || 24}" />
+        <div class="row"><label>字号</label>${numField('size', e.size || 24, { min: 8, max: 200 })}
           ${colorSwatch('color', e.color || '#eaf1ff')}</div>
         <div class="row"><label>对齐</label>
           <select data-k="align">
@@ -2048,8 +2093,8 @@
     }
 
     body += `<div class="divider"></div>
-      <div class="row"><label>圆角</label><input type="number" data-k="radius" value="${e.radius == null ? 10 : e.radius}" />
-        <label style="width:auto;flex:0 0 auto">透明</label><input type="number" data-k="opacity" step="0.1" min="0" max="1" value="${e.opacity == null ? 1 : e.opacity}" style="max-width:64px" /></div>
+      <div class="row"><label>圆角</label>${numField('radius', e.radius == null ? 10 : e.radius, { min: 0 })}
+        <label style="width:auto;flex:0 0 auto">透明</label>${numField('opacity', e.opacity == null ? 1 : e.opacity, { min: 0, max: 1, step: 0.1 })}</div>
       <div class="mini">
         <button data-act="front">上移一层</button>
         <button data-act="back">下移一层</button>
@@ -2088,7 +2133,7 @@
       <div class="row"><label>双向</label>
         <label class="chk"><input type="checkbox" data-k="double" ${a.double ? 'checked' : ''} /> 两端都画箭头</label></div>
       <div class="row"><label>颜色</label>${colorSwatch('color', a.color || '#c8c8c8')}</div>
-      <div class="row"><label>粗细</label><input type="number" data-k="strokeW" min="0.5" max="12" step="0.5" value="${a.strokeW == null ? 1 : a.strokeW}" /></div>
+      <div class="row"><label>粗细</label>${numField('strokeW', a.strokeW == null ? 1 : a.strokeW, { min: 0.5, max: 12, step: 0.5 })}</div>
       <div class="hintline">连线跟随元素移动，不需要手动摆；箭头类型和颜色都可以单独调。</div>`;
   }
 
@@ -2156,9 +2201,9 @@
     const hasCard = has('card'), hasPanel = has('panel'), hasText = has('text');
     const count = (t) => list.filter((e) => e.type === t).length;
 
-    const num = (k, ph, step) => {
+    const num = (k, ph, opts) => {
       const v = multiSame(list, k);
-      return `<input type="number" data-m="${k}"${step ? ` step="${step}"` : ''} placeholder="${ph || '不改变'}"${v != null ? ` value="${v}"` : ''} />`;
+      return numField(k, v == null ? '' : v, Object.assign({ m: true, ph: ph || '不改变' }, opts));
     };
     const sel = (k, opts) => {
       const v = multiSame(list, k);
@@ -2169,16 +2214,16 @@
     const head = (t, name) => `<div class="subhead">${name} × ${count(t)}</div>`;
 
     return `<h4>${list.length} 个元素</h4>
-      <div class="row"><label>尺寸</label>${num('w', '宽')}${num('h', '高')}</div>
-      <div class="row"><label>圆角</label>${num('radius', '圆角')}${num('opacity', '透明度', '0.1')}</div>
+      <div class="row"><label>尺寸</label>${num('w', '宽', { min: 20 })}${num('h', '高', { min: 16 })}</div>
+      <div class="row"><label>圆角</label>${num('radius', '圆角', { min: 0 })}${num('opacity', '透明度', { min: 0, max: 1, step: 0.1 })}</div>
       ${hasPanel ? `${head('panel', '层带面板')}
-        <div class="row"><label>标签字</label>${num('labelSize', '字号')}${col('labelColor')}</div>
+        <div class="row"><label>标签字</label>${num('labelSize', '字号', { min: 8, max: 64 })}${col('labelColor')}</div>
         <div class="row"><label>强调色</label>${swatches(null)}</div>
         <div class="row"><label>边框</label>${col('stroke')}
           <label style="width:auto;flex:0 0 auto">背景</label>${col('fillColor')}</div>` : ''}
       ${hasCard ? `${head('card', '卡片')}
-        <div class="row"><label>标题字</label>${num('titleSize', '字号')}${col('titleColor')}</div>
-        <div class="row"><label>说明字</label>${num('subSize', '字号')}${col('subColor')}</div>
+        <div class="row"><label>标题字</label>${num('titleSize', '字号', { min: 8, max: 96 })}${col('titleColor')}</div>
+        <div class="row"><label>说明字</label>${num('subSize', '字号', { min: 8, max: 72 })}${col('subColor')}</div>
         <div class="row"><label>边框</label>${col('stroke')}
           <label style="width:auto;flex:0 0 auto">背景</label>${col('fill')}</div>
         <div class="row"><label>图标</label>
@@ -2189,7 +2234,7 @@
       ${hasCard || hasPanel ? `<div class="row"><label>阴影</label>${sel('shadow', [['0', '无'], ['1', '弱'], ['2', '中'], ['3', '强']])}</div>
         <div class="row"><label>角标</label>${sel('corners', [['1', '显示'], ['0', '隐藏']])}</div>` : ''}
       ${hasText ? `${head('text', '文字')}
-        <div class="row"><label>字号</label>${num('size', '字号')}${col('color')}</div>
+        <div class="row"><label>字号</label>${num('size', '字号', { min: 8, max: 200 })}${col('color')}</div>
         <div class="row"><label>字重</label>${sel('weight', [['400', '常规'], ['500', '中等'], ['600', '半粗'], ['700', '加粗']])}</div>
         <div class="row"><label>对齐</label>${sel('align', [['left', '左对齐'], ['center', '居中'], ['right', '右对齐']])}</div>` : ''}
       <div class="divider"></div>
@@ -2459,11 +2504,9 @@
     return `<h4>画布</h4>
       <div class="row"><label>名称</label><input type="text" data-k="name" class="cv-name-input" value="${esc(c.name || '')}" /></div>
       <div class="row"><label>位置</label>
-        <input type="number" data-k="x" value="${Math.round(c.x)}" />
-        <input type="number" data-k="y" value="${Math.round(c.y)}" /></div>
+        ${numField('x', Math.round(c.x))}${numField('y', Math.round(c.y))}</div>
       <div class="row"><label>尺寸</label>
-        <input type="number" data-k="w" value="${Math.round(c.w)}" />
-        <input type="number" data-k="h" value="${Math.round(c.h)}" /></div>
+        ${numField('w', Math.round(c.w), { min: 80 })}${numField('h', Math.round(c.h), { min: 60 })}</div>
       <div class="row"><label>比例</label>
         <select data-k="ratio">
           ${RATIOS.map(([k, t]) => `<option value="${k}" ${(hit ? hit[0] : '') === k ? 'selected' : ''}>${t}</option>`).join('')}
@@ -2812,6 +2855,28 @@
     if (ev.code === 'Space') { spaceDown = false; viewport.style.cursor = ''; }
   });
 
+  /* ------------------------------------------------------------ 滚轮 / 触控板 */
+  // 浏览器不告诉我们是「鼠标滚轮」还是「触控板双指」，两者都只是 wheel 事件。
+  // 但增量形状能区分（Chromium 的换算）：滚轮一格恒为 zDelta=120 → deltaY=100，
+  // 所以鼠标的 deltaY 一定是 100 的整数倍、并且 X 轴恒为 0；触控板（精密触摸板）
+  // 是高频的零碎增量，常带小数（120 的分数换算值），斜着滑时横纵同时有值。
+  // 判定为滚轮 → 缩放；其余一律按触控板处理，双指自由平移。
+  // 同一次手势一旦判成触控板就锁定，免得中途一个「整 100」的增量把平移打断成缩放。
+  const WHEEL_GESTURE_GAP = 180;   // ms：超过这个间隔算新的一次滚动手势
+  let wheelGesture = { trackpad: false, last: -1e9 };
+  function isTrackpadWheel(ev) {
+    const now = performance.now();
+    if (now - wheelGesture.last > WHEEL_GESTURE_GAP) wheelGesture.trackpad = false;
+    wheelGesture.last = now;
+    if (wheelGesture.trackpad) return true;
+    if (ev.deltaMode !== 0) return false;                       // 行/页模式：传统滚轮
+    const adx = Math.abs(ev.deltaX), ady = Math.abs(ev.deltaY);
+    const twoAxis = adx > 0.01 && ady > 0.01;                   // 滚轮的 X 轴恒为 0
+    const notched = !twoAxis && ady >= 100 && ady % 1 === 0 && ady % 100 === 0;
+    wheelGesture.trackpad = !notched;
+    return !notched;
+  }
+
   viewport.addEventListener('wheel', (ev) => {
     ev.preventDefault();
     // 捏合手势 / Ctrl(⌘)+滚轮 → 缩放
@@ -2819,11 +2884,21 @@
       zoomAt(ev.clientX, ev.clientY, ev.deltaY < 0 ? 1.08 : 1 / 1.08);
       return;
     }
-    // 触控板双指 → 自由平移（含惯性增量），shift 强制横向
-    const dx = ev.shiftKey ? ev.deltaY : ev.deltaX;
-    const dy = ev.shiftKey ? 0 : ev.deltaY;
-    panX -= dx;
-    panY -= dy;
+    // ⇧+滚轮 → 横向平移（鼠标只有 deltaY，触控板斜滑时两边都有，取大的那个）
+    if (ev.shiftKey) {
+      panX -= Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+      applyView();
+      return;
+    }
+    // 鼠标滚轮 → 以光标为锚点缩放。滚一格（100）约 9%，快速拨动按幅度连续叠加。
+    if (!isTrackpadWheel(ev)) {
+      const px = ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaMode === 2 ? ev.deltaY * 400 : ev.deltaY;
+      zoomAt(ev.clientX, ev.clientY, clamp(Math.exp(-px * 0.0009), 0.5, 2));
+      return;
+    }
+    // 触控板双指 → 自由平移（含惯性增量）
+    panX -= ev.deltaX;
+    panY -= ev.deltaY;
     applyView();
   }, { passive: false });
 

@@ -18,7 +18,9 @@
   --text: #f2f2f2;
   --dim: #a3a3a3;
   --faint: #7d7d7d;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  /* 界面只有一套字体：系统 UI 字体，和画布导出用的 FONT（app.js）保持同一串。
+     数字对齐靠 font-variant-numeric: tabular-nums，不再依赖等宽字。 */
+  --app-system: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -26,7 +28,7 @@ html, body { height: 100%; margin: 0; }
 body {
   background: var(--void);
   color: var(--text);
-  font: 13px/1.5 -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  font: 13px/1.5 var(--app-system);
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
@@ -76,7 +78,7 @@ body {
   transform: translateY(-2px);
 }
 #bar .brand .en {
-  font: 400 8.5px/1 var(--mono); font-style: normal;
+  font: 400 8.5px/1 var(--app-system); font-style: normal;
   letter-spacing: .24em; color: var(--faint); margin-left: 2px;
   transform: translateY(.5px);
 }
@@ -114,13 +116,13 @@ body {
   width: 16px; height: 16px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid transparent; border-radius: 0; background: transparent;
-  color: var(--dim); font: 12px/1 var(--mono); cursor: pointer;
+  color: var(--dim); font: 12px/1 var(--app-system); cursor: pointer;
   transition: color .12s, border-color .12s, background-color .12s;
 }
 #hint .zoomgrp button:hover { color: var(--text); border-color: var(--hair-hi); background: rgba(255, 255, 255, .06); }
 #hint .zoomgrp button:active { color: #fff; border-color: var(--wire); }
 #hint .zoom {
-  font: 11px/1 var(--mono); color: var(--text); font-weight: 600;
+  font: 11px/1 var(--app-system); color: var(--text); font-weight: 600;
   min-width: 36px; text-align: center;
   letter-spacing: .02em; font-variant-numeric: tabular-nums; cursor: pointer;
   padding: 2px 0;
@@ -223,6 +225,10 @@ body {
 .el.selected { outline: 1px solid var(--wire); outline-offset: 0; }
 .el.locked { cursor: default; }
 .el .content { display: flex; flex: 1; min-width: 0; }
+/* 图元里的图片不吃鼠标：卡片/面板上传的图标不能被浏览器原生拖拽，也选不中。
+   否则按住图标拖动会变成「把这张图拖走」，抬手时落到上传入口上还会误开文件框；
+   拖动、选中一律交给外层 .el 的 pointer 逻辑。 */
+.el img { pointer-events: none; -webkit-user-drag: none; user-select: none; }
 
 /* 角标：面板四角，卡片对角两角 —— 依次表示「容器」与「节点」 */
 .el-panel::after, .el-card::after {
@@ -354,7 +360,7 @@ body {
 }
 .rr-key {
   margin-left: auto;
-  font: 10.5px/1 var(--mono); color: var(--faint); letter-spacing: .1em;
+  font: 10.5px/1 var(--app-system); color: var(--faint); letter-spacing: .1em;
 }
 
 /* ---------- 检查器 ---------- */
@@ -367,7 +373,7 @@ body {
 #inspector .ins-empty { color: var(--dim); line-height: 1.8; }
 #inspector .ins-empty span { color: var(--faint); font-size: 12px; }
 #inspector .subhead {
-  margin: 14px 0 8px; font: 11px/1 var(--mono); letter-spacing: .08em;
+  margin: 14px 0 8px; font: 11px/1 var(--app-system); letter-spacing: .08em;
   color: var(--dim); text-transform: uppercase;
 }
 #inspector h4 {
@@ -396,9 +402,37 @@ body {
   outline: none;
   transition: border-color .12s;
 }
-#inspector input[type="number"] {
-  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 11.5px;
+/* 数值步进：横排 [−][值][+]，替掉 number 框右侧自带的上下箭头。
+   下划线画在整条 stepper 上，输入框自己不要边框 —— 这条选择器必须压过上面那条
+   基础输入样式（它带了四个 :not()，权重更高；那句 font: inherit 也会把
+   font-variant-numeric 重置掉，所以这里要重新声明等宽数字）。 */
+#inspector .stepper {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 1px;
+  border-bottom: 1px solid var(--hair);
+  transition: border-color .12s;
 }
+#inspector .stepper:focus-within { border-color: var(--wire); }
+#inspector .stepper input:not([type="checkbox"]):not([type="file"]):not([type="range"]):not([type="color"]) {
+  flex: 1; min-width: 0; width: 100%;
+  height: 24px; padding: 0 1px;
+  border: 0; border-radius: 0;
+  text-align: center;
+  font-family: var(--app-system); font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: textfield; appearance: textfield;
+}
+#inspector .stepper input::-webkit-outer-spin-button,
+#inspector .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#inspector .step-btn {
+  flex: 0 0 17px; width: 17px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 0; background: transparent;
+  color: var(--faint); font: 12px/1 var(--app-system); cursor: pointer;
+  transition: color .12s, background-color .12s;
+}
+#inspector .step-btn:hover { color: var(--text); background: rgba(255, 255, 255, .07); }
+#inspector .step-btn:active { color: var(--wire); }
 #inspector input.cv-name-input { letter-spacing: .01em; }
 #inspector textarea { height: 54px; padding: 4px 2px; resize: vertical; line-height: 1.45; border: 1px solid var(--hair); }
 #inspector input:focus, #inspector textarea:focus, #inspector select:focus { border-color: var(--wire); }
@@ -462,7 +496,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  font-family: var(--mono);
+  font-family: var(--app-system);
   font-variant-numeric: tabular-nums;
   letter-spacing: .02em;
   color: var(--dim);
@@ -497,7 +531,7 @@ body.layers-open #viewport { left: 236px; }
 }
 .lp-title { font-size: 12px; font-weight: 600; color: var(--dim); letter-spacing: .16em; }
 .lp-count {
-  margin-left: auto; font: 10.5px/1 var(--mono); color: var(--faint);
+  margin-left: auto; font: 10.5px/1 var(--app-system); color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
 .lp-body { flex: 1; overflow: auto; padding: 2px 0 8px; }
@@ -557,7 +591,7 @@ body.lp-dragging, body.lp-dragging * { cursor: grabbing !important; }
   white-space: nowrap; overflow: visible;
 }
 .lp-sub {
-  font: 10.5px/1 var(--mono); color: var(--faint); flex: none;
+  font: 10.5px/1 var(--app-system); color: var(--faint); flex: none;
   font-variant-numeric: tabular-nums; letter-spacing: .02em;
 }
 
@@ -606,7 +640,7 @@ body.lp-dragging, body.lp-dragging * { cursor: grabbing !important; }
   /* 顶部居中，与上边框保持 8px 间距 */
   /* top 以 padding box 为基准，画布有 1px 边框，所以用 -9px 才能离上边框正好 8px */
   position: absolute; left: 50%; top: -9px; transform: translate(-50%, -100%);
-  font: 11px/1 var(--mono); letter-spacing: .06em; color: #dcdcdc; white-space: nowrap;
+  font: 11px/1 var(--app-system); letter-spacing: .06em; color: #dcdcdc; white-space: nowrap;
   background: var(--void);
   border: 1px solid rgba(255, 255, 255, .3);
   border-radius: 0; padding: 5px 10px;
@@ -704,19 +738,21 @@ body.lp-dragging, body.lp-dragging * { cursor: grabbing !important; }
 .cp-hex {
   flex: 1; min-width: 0; height: 22px;
   background: transparent; border: 0; border-bottom: 1px solid var(--hair);
-  color: var(--text); font: 11.5px/1 var(--mono); letter-spacing: .04em;
+  color: var(--text); font: 11.5px/1 var(--app-system); letter-spacing: .04em;
+  font-variant-numeric: tabular-nums;
   padding: 0 2px; outline: none; text-transform: uppercase;
 }
 .cp-hex:focus { border-bottom-color: var(--wire); }
 .cp-prev {
   flex: none; width: 40px; height: 22px; border: 1px solid var(--hair);
   display: flex; align-items: center; justify-content: center;
-  font: 10px/1 var(--mono); font-variant-numeric: tabular-nums;
+  font: 10px/1 var(--app-system); font-variant-numeric: tabular-nums;
 }
 .cp-num {
   width: 38px; height: 22px; flex: none;
   background: transparent; border: 0; border-bottom: 1px solid var(--hair);
-  color: var(--text); font: 11.5px/1 var(--mono); text-align: right;
+  color: var(--text); font: 11.5px/1 var(--app-system); text-align: right;
+  font-variant-numeric: tabular-nums;
   padding: 0 2px; outline: none;
 }
 .cp-num:focus { border-bottom-color: var(--wire); }
@@ -737,7 +773,7 @@ body.lp-dragging, body.lp-dragging * { cursor: grabbing !important; }
 }
 .rng:hover::-webkit-slider-thumb { background: var(--wire); }
 .pctv {
-  font: 10.5px/1 var(--mono); color: var(--dim); min-width: 32px; text-align: right;
+  font: 10.5px/1 var(--app-system); color: var(--dim); min-width: 32px; text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
