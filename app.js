@@ -3773,6 +3773,11 @@
       'background:#e6e6e6;color:#0a0a0a;padding:2px 7px;border-radius:2px;font-weight:600;letter-spacing:.02em',
       'color:#7d7d7d'
     );
+    console.log(
+      '%c 智能体接口 %c archboard.help() 取工具清单 · archboard.guide() 取操作提示',
+      'background:#2a2a2a;color:#e6e6e6;padding:2px 7px;border-radius:2px;font-weight:600',
+      'color:#7d7d7d'
+    );
     renderAll();
     fitView();
     pushHistory();
@@ -3829,6 +3834,340 @@
       return { hasState: !!rec, savedAt: rec ? rec.at : null, jsonKB: rec ? +(rec.json.length / 1024).toFixed(1) : 0, quotaGB: est ? +(est.quota / 1073741824).toFixed(1) : null, usageMB: est ? +(est.usage / 1048576).toFixed(2) : null };
     },
   };
+
+
+  /* ------------------------------------------------------------ 智能体接口 */
+  // 面向模型的控制台接口：JSON 进、JSON 出，读写都走撤销历史与本地存储。
+  // 入口：window.archboard；先跑 help() 取工具清单，guide() 取操作提示。
+  const AG_VERSION = '1.0';
+  const AG_FIELDS = {
+    panel: ['label', 'labelSize', 'labelColor', 'accent', 'stroke', 'fillColor', 'fillAlpha', 'bg', 'radius', 'shadow', 'corners', 'x', 'y', 'w', 'h', 'opacity'],
+    card: ['title', 'sub', 'titleSize', 'titleColor', 'subSize', 'subColor', 'accent', 'stroke', 'fill', 'icon', 'layout', 'radius', 'shadow', 'corners', 'x', 'y', 'w', 'h', 'opacity'],
+    text: ['text', 'size', 'color', 'weight', 'align', 'x', 'y', 'w', 'h', 'opacity'],
+    image: ['src', 'fit', 'x', 'y', 'w', 'h', 'opacity'],
+    arrow: ['from', 'to', 'fromSide', 'toSide', 'mode', 'dash', 'head', 'double', 'color', 'strokeW'],
+  };
+  const AG_DEFAULT = {
+    panel: { w: 1800, h: 140, label: '新层', accent: '#7ea6ff', radius: 0 },
+    card: { w: 390, h: 92, title: '新卡片', sub: '说明文字', accent: '#7ea6ff', radius: 0 },
+    text: { w: 420, h: 44, text: '文字', size: 24, color: '#eaf1ff', align: 'left' },
+    image: { w: 96, h: 96, src: '', fit: 'cover' },
+  };
+
+  const archboard = (() => {
+    const ok = (extra) => Object.assign({ ok: true }, extra || {});
+    const fail = (code, message, hint) => ({ ok: false, error: { code, message, hint } });
+    const byIds = (ids) => { const s = new Set(ids || []); return state.elements.filter((e) => s.has(e.id)); };
+    const bounds = (list) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const e of list) {
+        x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y);
+        x1 = Math.max(x1, e.x + e.w); y1 = Math.max(y1, e.y + e.h);
+      }
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    };
+    const label = (e) => e.title || e.label || e.text || '';
+
+    const TOOLS = [
+      { name: 'state', desc: '读取画布与全部元素（id / 类型 / 坐标 / 文案 / 当前选中）', args: {} },
+      { name: 'find', desc: '按类型或文案筛选元素，返回 id 列表', args: { type: 'panel|card|text|image|arrow', text: '包含的文字' } },
+      { name: 'create', desc: '新建元素，返回新 id。坐标单位为画布像素，左上角定位', args: { type: 'panel|card|text|image', x: 0, y: 0, w: 0, h: 0, title: '卡片标题', label: '面板标签', text: '文字内容' } },
+      { name: 'update', desc: '批量改样式的字段（只认该类元素支持的字段）', args: { ids: ['id'], patch: { title: '标题', stroke: '#ff8f5a', shadow: 2 } } },
+      { name: 'remove', desc: '删除元素，顺带删除挂在它们身上的连线', args: { ids: ['id'] } },
+      { name: 'duplicate', desc: '复制元素，可指定偏移', args: { ids: ['id'], dx: 24, dy: 24 } },
+      { name: 'select', desc: '设置选中（reveal=true 时缩放到选区）', args: { ids: ['id'], reveal: false } },
+      { name: 'align', desc: '对齐到选区外接框', args: { ids: ['id'], mode: 'left|cx|right|top|cy|bottom' } },
+      { name: 'distribute', desc: '沿水平或垂直方向等距分布（至少 3 个）', args: { ids: ['id'], axis: 'h|v', gap: 24 } },
+      { name: 'layout', desc: '按行或列依次排开', args: { ids: ['id'], dir: 'row|column', gap: 24, x: 0, y: 0 } },
+      { name: 'connect', desc: '在两个元素之间连一条箭头', args: { from: 'id', to: 'id', mode: 'bezier|straight|elbow', dash: 'solid|dash|dot', head: 'none|arrow|triangle|circle', color: '#c8c8c8' } },
+      { name: 'view', desc: '视图：fti=true 适应窗口，zoom 指定缩放，ids 聚焦选区', args: { fit: true, zoom: 0.8, ids: ['id'] } },
+      { name: 'exportPNG', desc: '导出 PNG，返回 dataURL', args: { scale: 2 } },
+      { name: 'exportJSON', desc: '导出当前工程 JSON 字符串', args: {} },
+      { name: 'importJSON', desc: '载入工程 JSON（整体替换当前画布）', args: { json: '{"elements":[...]}' } },
+      { name: 'undo', desc: '撤销一步', args: {} },
+      { name: 'redo', desc: '重做一步', args: {} },
+      { name: 'clear', desc: '清空全部元素（需 confirm:true）', args: { confirm: true, resetCanvas: true } },
+      { name: 'run', desc: '按顺序执行多个工具调用', args: { ops: [{ tool: 'create', args: {} }] } },
+      { name: 'help', desc: '返回本清单', args: {} },
+      { name: 'guide', desc: '返回给模型看的使用提示（纯文本）', args: {} },
+    ];
+
+    function help() {
+      return ok({ app: 'Archboard', version: AG_VERSION, coordinate: '画布像素，原点在画布左上角，y 向下；元素以左上角定位', tools: TOOLS });
+    }
+
+    function guide() {
+      return ok({ text: [
+        '架构板智能体接口 v' + AG_VERSION,
+        '· 调用方式：archboard.call("工具名", 参数)，或直接 archboard.工具名(参数)，返回 JSON',
+        '· 坐标单位是画布像素，元素以左上角定位，y 向下；尺寸建议：层带面板 1800×140、卡片 390×92、间距 24、文字 420×44',
+        '· 开始前先 archboard.help() 取清单、archboard.state() 看现状',
+        '· 典型流程：create(panel) → create(card) × N → layout(row|column) → connect(from, to) → exportPNG()',
+        '· 批量改动用 run({ops:[...]})；每次写操作都会进撤销历史，出错可 undo()',
+        '· 颜色写 #rrggbb 或 #rrggbbaa；阴影 0–3 档；角标 corners:true/false',
+        '· 清空需要显式 confirm:true，不要在没有确认的情况下调用 clear',
+      ].join('\n') });
+    }
+
+    function state_() {
+      const counts = {};
+      for (const e of state.elements) counts[e.type] = (counts[e.type] || 0) + 1;
+      return ok({
+        canvases: state.canvases.map((c) => ({ id: c.id, name: c.name, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h) })),
+        counts,
+        selection: [...sel],
+        zoom: +zoom.toFixed(3),
+        elements: state.elements.map((e) => ({
+          id: e.id, type: e.type,
+          x: Math.round(e.x), y: Math.round(e.y), w: Math.round(e.w), h: Math.round(e.h),
+          text: label(e),
+        })),
+      });
+    }
+
+    function find(a) {
+      const list = state.elements.filter((e) => (!a.type || e.type === a.type) && (!a.text || String(label(e)).includes(a.text)));
+      return ok({ ids: list.map((e) => e.id), count: list.length });
+    }
+
+    function create(a) {
+      const type = a && a.type;
+      if (!AG_DEFAULT[type]) return fail('bad_type', '不支持的 type: ' + type, '可选 panel / card / text / image，连线请用 connect');
+      pushHistory();
+      const e = Object.assign({ id: uid(type[0]), type, x: 0, y: 0, radius: 0 }, AG_DEFAULT[type]);
+      for (const k of AG_FIELDS[type]) if (a[k] !== undefined) e[k] = a[k];
+      state.elements.push(e);
+      sel.clear(); sel.add(e.id);
+      renderAll(); commit(); saveSoon();
+      return ok({ id: e.id });
+    }
+
+    function update(a) {
+      const list = byIds(a.ids);
+      if (!list.length) return fail('not_found', 'ids 没有匹配到元素', '先 state() 取 id');
+      const patch = a.patch || {};
+      const keys = Object.keys(patch);
+      if (!keys.length) return fail('bad_args', 'patch 为空', '例如 {title:"标题", shadow:2}');
+      pushHistory();
+      let applied = 0;
+      for (const e of list) {
+        const allow = AG_FIELDS[e.type] || [];
+        for (const k of keys) if (allow.includes(k)) { e[k] = patch[k]; applied++; }
+      }
+      renderAll(); commit(); saveSoon();
+      const ignored = keys.filter((k) => !list.some((e) => (AG_FIELDS[e.type] || []).includes(k)));
+      return ok({ updated: list.length, applied, ignored });
+    }
+
+    function remove(a) {
+      const list = byIds(a.ids);
+      if (!list.length) return fail('not_found', 'ids 没有匹配到元素');
+      const dead = new Set(list.map((e) => e.id));
+      pushHistory();
+      state.elements = state.elements.filter((e) => !dead.has(e.id) && !(e.type === 'arrow' && (dead.has(e.from) || dead.has(e.to))));
+      sel.clear(); renderAll(); commit(); saveSoon();
+      return ok({ removed: dead.size });
+    }
+
+    function duplicate(a) {
+      const list = byIds(a.ids);
+      if (!list.length) return fail('not_found', 'ids 没有匹配到元素');
+      const dx = a.dx == null ? 24 : Number(a.dx);
+      const dy = a.dy == null ? 24 : Number(a.dy);
+      pushHistory();
+      const map = new Map();
+      const copies = list.map((e) => {
+        const c = JSON.parse(JSON.stringify(e));
+        c.id = uid(e.type[0]); map.set(e.id, c.id);
+        c.x += dx; c.y += dy;
+        return c;
+      });
+      for (const c of copies) {
+        if (c.type === 'arrow') {
+          if (map.has(c.from)) c.from = map.get(c.from);
+          if (map.has(c.to)) c.to = map.get(c.to);
+        }
+      }
+      state.elements.push(...copies);
+      sel.clear(); copies.forEach((c) => sel.add(c.id));
+      renderAll(); commit(); saveSoon();
+      return ok({ ids: copies.map((c) => c.id) });
+    }
+
+    function select_(a) {
+      const list = byIds(a.ids);
+      sel.clear(); list.forEach((e) => sel.add(e.id));
+      syncSelection(!!a.reveal);
+      return ok({ selected: list.length });
+    }
+
+    function align_(a) {
+      const list = byIds(a.ids).filter((e) => e.type !== 'arrow');
+      if (!list.length) return fail('not_found', 'ids 没有匹配到元素');
+      const mode = a.mode || 'left';
+      if (!['left', 'cx', 'right', 'top', 'cy', 'bottom'].includes(mode)) return fail('bad_mode', '未知 mode: ' + mode, 'left / cx / right / top / cy / bottom');
+      const b = bounds(list);
+      pushHistory();
+      for (const e of list) {
+        if (mode === 'left') e.x = b.x;
+        else if (mode === 'cx') e.x = b.x + (b.w - e.w) / 2;
+        else if (mode === 'right') e.x = b.x + b.w - e.w;
+        else if (mode === 'top') e.y = b.y;
+        else if (mode === 'cy') e.y = b.y + (b.h - e.h) / 2;
+        else e.y = b.y + b.h - e.h;
+        e.x = round(e.x); e.y = round(e.y);
+      }
+      renderAll(); commit(); saveSoon();
+      return ok({ aligned: list.length, mode });
+    }
+
+    function distribute(a) {
+      const list = byIds(a.ids).filter((e) => e.type !== 'arrow');
+      if (list.length < 3) return fail('bad_args', '至少需要 3 个元素', '两个元素请用 layout');
+      const axis = a.axis === 'v' ? 'v' : 'h';
+      const sorted = [...list].sort((p, q) => (axis === 'h' ? p.x - q.x : p.y - q.y));
+      const first = sorted[0], last = sorted[sorted.length - 1];
+      const total = axis === 'h' ? last.x + last.w - first.x : last.y + last.h - first.y;
+      const sum = sorted.reduce((s, e) => s + (axis === 'h' ? e.w : e.h), 0);
+      const gap = a.gap == null ? (total - sum) / (sorted.length - 1) : Number(a.gap);
+      pushHistory();
+      let cursor = axis === 'h' ? first.x : first.y;
+      for (const e of sorted) {
+        if (axis === 'h') { e.x = round(cursor); cursor += e.w + gap; }
+        else { e.y = round(cursor); cursor += e.h + gap; }
+      }
+      renderAll(); commit(); saveSoon();
+      return ok({ count: sorted.length, axis, gap: round(gap) });
+    }
+
+    function layout(a) {
+      const list = byIds(a.ids);
+      if (!list.length) return fail('not_found', 'ids 没有匹配到元素');
+      const dir = a.dir === 'column' ? 'column' : 'row';
+      const gap = a.gap == null ? 24 : Number(a.gap);
+      const sorted = [...list].sort((p, q) => (dir === 'row' ? p.x - q.x || p.y - q.y : p.y - q.y || p.x - q.x));
+      const b = bounds(list);
+      let cx = a.x == null ? b.x : Number(a.x);
+      let cy = a.y == null ? b.y : Number(a.y);
+      pushHistory();
+      for (const e of sorted) {
+        if (dir === 'row') { e.x = round(cx); e.y = round(cy); cx += e.w + gap; }
+        else { e.x = round(cx); e.y = round(cy); cy += e.h + gap; }
+      }
+      renderAll(); commit(); saveSoon();
+      return ok({ count: sorted.length, dir, gap });
+    }
+
+    function connect(a) {
+      const fe = state.elements.find((x) => x.id === a.from);
+      const te = state.elements.find((x) => x.id === a.to);
+      if (!fe || !te) return fail('not_found', 'from / to 需要已存在的元素 id', '先用 create 得到 id');
+      if (fe.id === te.id) return fail('bad_args', '不能连到自身');
+      pushHistory();
+      const arrow = {
+        id: uid('a'), type: 'arrow', from: fe.id, to: te.id,
+        fromSide: a.fromSide || null, toSide: a.toSide || null,
+        mode: a.mode || 'bezier', dash: a.dash || 'solid', head: a.head || 'triangle',
+        double: !!a.double, color: a.color || '#c8c8c8', strokeW: a.strokeW == null ? 1 : Number(a.strokeW),
+        z: 500,
+      };
+      state.elements.push(arrow);
+      renderAll(); commit(); saveSoon();
+      return ok({ id: arrow.id });
+    }
+
+    function view(a) {
+      if (a && a.ids && a.ids.length) {
+        const list = byIds(a.ids);
+        if (!list.length) return fail('not_found', 'ids 没有匹配到元素');
+        const b = bounds(list);
+        const r = viewport.getBoundingClientRect();
+        const pad = 80;
+        zoom = clamp(Math.min(r.width / (b.w + pad * 2), r.height / (b.h + pad * 2)), 0.05, 4);
+        panX = (r.width - b.w * zoom) / 2 - (b.x - pad) * zoom;
+        panY = (r.height - b.h * zoom) / 2 - (b.y - pad) * zoom;
+        applyView();
+        return ok({ zoom: +zoom.toFixed(3) });
+      }
+      if (a && a.zoom) {
+        zoom = clamp(Number(a.zoom), 0.05, 4);
+        applyView();
+        return ok({ zoom: +zoom.toFixed(3) });
+      }
+      fitView();
+      return ok({ zoom: +zoom.toFixed(3) });
+    }
+
+    async function exportPNG_(a) {
+      const cv = await buildExportCanvas(a && a.region, (a && a.scale) || 2);
+      return ok({ width: cv.width, height: cv.height, dataURL: cv.toDataURL('image/png') });
+    }
+
+    function exportJSON() {
+      return ok({ json: JSON.stringify({ elements: state.elements, canvases: state.canvases, layers: state.layers, bg: state.bg }) });
+    }
+
+    function importJSON(a) {
+      const json = typeof a.json === 'string' ? a.json : JSON.stringify(a.json || {});
+      try {
+        restore(json);
+      } catch (err) {
+        return fail('bad_json', 'JSON 解析失败: ' + String(err && err.message || err));
+      }
+      renderAll(); saveSoon();
+      return ok({ elements: state.elements.length, canvases: state.canvases.length });
+    }
+
+    function undo_() { undo(); return ok({ canUndo: histIndex > 0 }); }
+    function redo_() { redo(); return ok({ canRedo: histIndex < history.length - 1 }); }
+
+    function clear(a) {
+      if (!a || a.confirm !== true) return fail('need_confirm', '清空会删除全部元素，需要 confirm:true', '只想删几个请用 remove({ids})');
+      pushHistory();
+      state.elements = [];
+      state.layers = [];
+      if (a.resetCanvas !== false) {
+        state.canvases = [{ id: uid('v'), name: '主画布', x: 0, y: 0, w: 1600, h: 900, bgColor: '#0a0a0a', bgImage: null, bgFit: 'cover', visible: true }];
+      }
+      sel.clear(); renderAll(); commit(); saveSoon();
+      return ok({ cleared: true });
+    }
+
+    const api = {
+      help, guide,
+      state: state_, find, create, update, remove, duplicate,
+      select: select_, align: align_, distribute, layout, connect, view,
+      exportPNG: exportPNG_, exportJSON, importJSON,
+      undo: undo_, redo: redo_, clear,
+    };
+
+    api.call = function (tool, args) {
+      const fn = api[tool];
+      if (typeof fn !== 'function' || tool === 'call') return fail('bad_tool', '没有这个工具: ' + tool, '先跑 archboard.help()');
+      try {
+        return fn(args || {});
+      } catch (err) {
+        return fail('exception', String(err && err.message || err));
+      }
+    };
+
+    api.run = function (a) {
+      const ops = (a && a.ops) || [];
+      if (!Array.isArray(ops) || !ops.length) return fail('bad_args', 'ops 为空', '例如 {ops:[{tool:"create",args:{type:"card"}}]}');
+      const results = [];
+      for (const op of ops) {
+        if (!op || !op.tool) { results.push({ ok: false, error: { code: 'bad_tool', message: '缺少 tool' } }); continue; }
+        let r = api.call(op.tool, op.args || {});
+        results.push(r && typeof r.then === 'function' ? { ok: true, pending: true } : r);
+      }
+      return ok({ results });
+    };
+
+    return api;
+  })();
+
+  window.archboard = archboard;
+  window.agent = archboard;          // 简写别名
 
   boot();
 })();
