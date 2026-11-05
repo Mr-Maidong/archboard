@@ -18,17 +18,27 @@ files:
 asar: true
 compression: maximum
 
+# 双击 .archboard 直接用架构板打开。
+# mac 会写进 Info.plist 的 CFBundleDocumentTypes，Windows 会注册到注册表。
+fileAssociations:
+  - ext: archboard
+    name: Archboard 工程
+    description: 架构板工程包
+    role: Editor
+    mimeType: application/x-archboard
+
 mac:
   category: public.app-category.graphics-design
   darkModeSupport: true
   hardenedRuntime: true
   # 没有 Apple Developer 证书时不要开公证，否则构建直接失败
   # notarize: true
+  # 默认只出当前机器的 arm64 dmg。需要 Intel 包时显式跑
+  #   npx electron-builder --mac --x64
+  # 要加自动更新（zip + blockmap）时，把下面的 zip 目标放回来。
   target:
     - target: dmg
-      arch: [arm64, x64]
-    - target: zip          # 自动更新用；没有更新服务可以先删掉
-      arch: [arm64, x64]
+      arch: [arm64]
   artifactName: ${productName}-${version}-${arch}.${ext}
 
 win:

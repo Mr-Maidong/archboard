@@ -17,11 +17,18 @@
 const { app, BrowserWindow, Menu, protocol, session, shell, nativeTheme } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const { statSync } = require('node:fs');
 
 const SCHEME = 'app';
 const HOST = 'archboard';
 const ROOT = app.getAppPath();            // 开发时是项目目录，打包后是 app.asar
 const INDEX = `${SCHEME}://${HOST}/index.html`;
+
+// 双击 .archboard 时，LaunchServices / argv 给的是路径；
+// 页面那边只认 File 对象，所以这里先暂存路径，再由 /__open 路由把它喂回页面。
+let mainWindow = null;
+let pendingOpen = null;      // 待打开的绝对路径
+let openPayload = null;      // /__open 当前对外提供的那一个文件
 
 // 必须在 app ready 之前注册，privileges 里的 standard + secure 决定
 // 这个 origin 能否拿到 IndexedDB、crypto.subtle、localStorage。
@@ -66,6 +73,20 @@ async function handleAppRequest(req) {
     return new Response('Bad Request', { status: 400 });
   }
   if (pathname === '/' || pathname === '') pathname = '/index.html';
+
+  // 文件关联用的虚拟路径：只吐当前待打开的那一个文件，不做任何路径拼接
+  if (pathname === '/__open') {
+    if (!openPayload) return new Response('Not Found', { status: 404 });
+    try {
+      const body = await fs.readFile(openPayload);
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'application/octet-stream', 'cache-control': 'no-store' },
+      });
+    } catch {
+      return new Response('Not Found', { status: 404 });
+    }
+  }
 
   const file = path.normalize(path.join(ROOT, pathname));
   // 目录穿越防护：只允许 app.asar 内部的文件
@@ -164,6 +185,7 @@ function createWindow() {
     },
   });
 
+  mainWindow = win;
   win.once('ready-to-show', () => win.show());
 
   // 站外链接交给系统浏览器，窗口本身不允许弹出新窗口
@@ -178,19 +200,92 @@ function createWindow() {
   });
 
   win.loadURL(INDEX);
+
+  // 页面就绪后，如果启动时带了文件（双击 .archboard），立刻送进去
+  win.webContents.once('did-finish-load', () => deliverOpen(win));
   return win;
 }
+
+/* ── 文件关联 ────────────────────────────────────────────────────────────
+   页面没有暴露“从路径导入”的接口，但它认窗口上的 drop 事件。
+   于是这里把文件路径暂存、由 /__open 路由交出字节，再在页面里造一个
+   File + DataTransfer 触发 drop —— 走的完全是拖拽文件那条既有链路，
+   前端一行都不用改。                                                  */
+
+const OPEN_SCRIPT = (name) => `(async () => {
+  const res = await fetch('${SCHEME}://${HOST}/__open', { cache: 'no-store' });
+  if (!res.ok) return 'http ' + res.status;
+  const blob = await res.blob();
+  const dt = new DataTransfer();
+  dt.items.add(new File([blob], ${JSON.stringify(name)}, { type: 'application/octet-stream' }));
+  window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  return 'ok';
+})()`;
+
+function queueOpen(filePath) {
+  if (!filePath) return;
+  pendingOpen = filePath;
+  if (mainWindow && !mainWindow.webContents.isLoading()) deliverOpen(mainWindow);
+}
+
+async function deliverOpen(win) {
+  if (!pendingOpen || !win) return;
+  const file = pendingOpen;
+  pendingOpen = null;
+
+  try {
+    if (!(await fs.stat(file)).isFile()) return;
+  } catch {
+    return;
+  }
+
+  openPayload = file;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+
+  try {
+    const result = await win.webContents.executeJavaScript(OPEN_SCRIPT(path.basename(file)), true);
+    if (result !== 'ok') console.warn('[archboard] 打开文件失败：', result);
+  } catch (e) {
+    console.warn('[archboard] 打开文件失败：', e && e.message);
+  }
+}
+
+/** 从命令行参数里挑出要打开的工程文件（Windows / Linux 走这条路） */
+function fileFromArgv(argv) {
+  const wanted = /\.(archboard|json)$/i;
+  for (let i = argv.length - 1; i >= 0; i--) {
+    const arg = argv[i];
+    if (!arg || arg.startsWith('-') || !wanted.test(arg)) continue;
+    const full = path.resolve(arg);
+    try {
+      if (statSync(full).isFile()) return full;
+    } catch { /* 路径不存在就继续找 */ }
+  }
+  return null;
+}
+
+// macOS：双击文档、或把文档拖到 Dock 图标上，都走这个事件，
+// 而且可能在 ready 之前就触发，所以必须早点注册。
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  queueOpen(filePath);
+});
 
 // 单实例：重复启动只聚焦已有窗口，不新开一个各存各的库
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     const win = BrowserWindow.getAllWindows()[0];
     if (!win) return;
     if (win.isMinimized()) win.restore();
     win.focus();
+    // 已经在运行时又双击了一个工程文件：Windows 会把路径塞进 argv
+    const file = fileFromArgv(argv);
+    if (file) queueOpen(file);
   });
 
   app.whenReady().then(async () => {
@@ -207,6 +302,10 @@ if (!gotLock) {
     buildMenu();
 
     const win = createWindow();
+
+    // 命令行里带了工程文件（Windows / Linux 的“打开方式”，或手动 electron . foo.archboard）
+    const fromArgv = fileFromArgv(process.argv);
+    if (fromArgv) queueOpen(fromArgv);
 
     // 自检钩子：ARCHBOARD_SMOKE=<输出目录> electron . 会截图并打印诊断后退出。
     // 只在打包之外的环境用，用来验证协议、IndexedDB、CompressionStream 是否正常。
@@ -241,6 +340,7 @@ async function runSmoke(win, outDir) {
       const out = {
         origin: location.origin,
         title: document.title,
+        viewport: innerWidth + 'x' + innerHeight + ' @' + devicePixelRatio + 'x',
         compression: typeof CompressionStream,
         api: typeof window.archboard,
         elements: window.archboard ? (archboard.state().elements || []).length : -1,

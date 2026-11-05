@@ -68,6 +68,15 @@ npx wrangler pages deploy . --project-name archboard
 也可以在仪表盘里：Workers & Pages → Create → Pages → **Upload assets** → 把整个目录拖进去。
 接 GitHub 自动部署时，构建设置填：Build command **留空**，Build output directory **`/`**（若仓库根就是这个目录）。
 
+> ⚠️ 本地装了桌面依赖之后，`dist/` 里会有几百 MB 的 `.app` 和 dmg。而 `wrangler pages deploy` 只硬编码忽略 `node_modules`、`.git`、`.DS_Store` 等少数几个模式，**不读 `.gitignore`**——直接部署会把 `dist/` 一起传上去。本地部署前先把 `dist/` 挪走，或者从干净克隆部署：
+>
+> ```bash
+> git archive HEAD | tar -x -C /tmp/archboard-web
+> npx wrangler pages deploy /tmp/archboard-web --project-name archboard
+> ```
+>
+> GitHub 自动部署那条路不受影响：`node_modules/`、`dist/` 都在 `.gitignore` 里。
+
 ### 浏览器要求
 
 Chrome / Edge 89+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩）与 `IndexedDB`。
@@ -80,9 +89,14 @@ Chrome / Edge 89+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩�
 ```bash
 npm install          # 装 electron 与 electron-builder，仅打包时需要
 npm start            # 以桌面应用方式运行
-npm run dist:mac     # → dist/Archboard-1.0.0-arm64.dmg（arm64 与 x64 各一份）
-npm run dist:win     # → dist/Archboard-1.0.0-x64.exe（NSIS 安装包）
+npm run dist:mac     # → dist/Archboard-1.0.0-arm64.dmg（只出本机架构）
+npm run dist:mac:x64 # 需要 Intel 包时才跑
+npm run dist:win     # → dist/Archboard-1.0.0-x64.exe（NSIS 安装包，建议在 Windows 或 Actions 上跑）
 ```
+
+默认只打当前机器架构的包：Apple Silicon 上只出 `arm64`，不会顺带垫一个 x64 和两个 zip。要别的产物就显式指定。
+
+装了之后 `.archboard` 会注册成工程文件：双击直接在架构板里打开（macOS 走 `open-file` 事件，Windows 走「打开方式」）。实现上没给前端加接口——`main.js` 把文件字节挂在 `app://archboard/__open` 上，再在页面里造一个 `File` 触发 `drop`，走的完全是拖拽导入那条既有链路。
 
 网页版一行命令都不用动：目录根仍然是 `index.html`，`npx wrangler pages deploy .` 照旧。
 
