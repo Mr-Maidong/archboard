@@ -919,13 +919,14 @@
     if (e.type === 'panel') {
       const accent = e.accent || '#7ea6ff';
       if (e.corners === false) n.classList.add('no-corners');
+      if (e.shadow) n.style.boxShadow = SHADOW[e.shadow] || '';
       n.innerHTML = `
         <div class="content">
           <div class="col">
             ${e.icon ? `<div class="ico-box" style="border-color:${hexA(accent, 0.34)};background:${hexA(accent, 0.06)}">
               <img src="${e.icon}" alt="">
             </div>` : ''}
-            <div class="label">${esc(e.label || '')}</div>
+            <div class="label" style="font-size:${clampNum(e.labelSize, 15, 8, 64)}px;color:${e.labelColor || '#d4d4d4'}">${esc(e.label || '')}</div>
           </div>
           <div class="body"></div>
         </div>`;
@@ -1875,14 +1876,26 @@
     let body = whInputs(e);
 
     if (e.type === 'panel') {
+      const accent = e.accent || '#7ea6ff';
       const fa = Math.round((e.fillAlpha == null ? 0.72 : e.fillAlpha) * 100);
       body += `<div class="row"><label>标签</label><input type="text" data-k="label" value="${esc(e.label || '')}" /></div>
-        <div class="row"><label>角标</label>
-          <label class="chk"><input type="checkbox" data-k="corners" ${e.corners === false ? '' : 'checked'} /> 显示四角</label></div>
+        <div class="row"><label>标签字</label>
+          <input type="number" data-k="labelSize" min="8" max="64" step="1" value="${clampNum(e.labelSize, 15, 8, 64)}" />
+          ${colorSwatch('labelColor', e.labelColor || '#d4d4d4')}</div>
         <div class="row"><label>强调色</label>${swatches(e.accent)}</div>
-        <div class="row"><label>背景色</label>${colorSwatch('fillColor', panelFill(e))}
+        <div class="row"><label>边框</label>${colorSwatch('stroke', e.stroke || hexA(accent, 0.6))}
+          <label style="width:auto;flex:0 0 auto">背景</label>${colorSwatch('fillColor', panelFill(e))}</div>
+        <div class="row"><label>透明度</label>
           <input class="rng" type="range" data-k="fillAlpha" min="0" max="100" step="1" value="${fa}" />
           <span class="pctv">${fa}%</span></div>
+        <div class="row"><label>阴影</label>
+          <select data-k="shadow">
+            <option value="0" ${!e.shadow ? 'selected' : ''}>无</option>
+            <option value="1" ${e.shadow === 1 ? 'selected' : ''}>弱</option>
+            <option value="2" ${e.shadow === 2 ? 'selected' : ''}>中</option>
+            <option value="3" ${e.shadow === 3 ? 'selected' : ''}>强</option>
+          </select>
+          <label class="chk"><input type="checkbox" data-k="corners" ${e.corners === false ? '' : 'checked'} /> 角标</label></div>
         <div class="row"><label>背景图</label>
           <label class="mini-btn upload" style="flex:1;display:flex;align-items:center;justify-content:center">${e.bg ? '更换' : '上传'}
             <input type="file" data-act="bg" accept="image/*" hidden /></label>
@@ -2116,6 +2129,7 @@
         if (k === 'corners') e.corners = !!v;
         if (k === 'shadow') e.shadow = Number(v) || 0;
         if (k === 'titleSize') e.titleSize = clampNum(v, 23, 8, 96);
+        if (k === 'labelSize') e.labelSize = clampNum(v, 15, 8, 64);
         if (k === 'subSize') e.subSize = clampNum(v, 15, 8, 72);
         if (['x', 'y', 'w', 'h', 'radius', 'size', 'opacity', 'strokeW'].includes(k)) {
           if (k === 'w') e.w = Math.max(20, Number(v));
@@ -2167,6 +2181,7 @@
           : k === 'fill' ? (e.fill || 'rgba(10,10,10,.55)')
           : k === 'titleColor' ? (e.titleColor || '#f5f5f5')
           : k === 'subColor' ? (e.subColor || '#a3a3a3')
+          : k === 'labelColor' ? (e.labelColor || '#d4d4d4')
           : (e[k] || '#7ea6ff');
         openColorPicker(btn, cur, (val) => {
           if (k === 'fillColor') {
@@ -2183,7 +2198,8 @@
           }
           const n = nodes.get(e.id);
           if (n) {
-            if (k === 'stroke') { n.style.borderColor = val; n.style.setProperty('--accent', val); }
+            if (k === 'stroke') { n.style.borderColor = val; if (e.type === 'card') n.style.setProperty('--accent', val); }
+            else if (k === 'labelColor') { const l = n.querySelector('.label'); if (l) l.style.color = val; }
             else if (k === 'fill') n.style.background = val;
             else if (k === 'titleColor') { const t = n.querySelector('.title'); if (t) t.style.color = val; }
             else if (k === 'subColor') { const sb = n.querySelector('.sub'); if (sb) sb.style.color = val; }
@@ -2840,7 +2856,14 @@
 
   async function drawPanel(ctx, e) {
     const accent = e.accent || '#7ea6ff';
-    rr(ctx, e, panelFill(e), e.stroke || hexA(accent, 0.5), 1);
+    const ls = clampNum(e.labelSize, 15, 8, 64);
+    if (e.shadow) { ctx.save(); applyShadow(ctx, e.shadow); }
+    rr(ctx, e, panelFill(e), e.shadow ? null : (e.stroke || hexA(accent, 0.5)), 1);
+    if (e.shadow) {
+      ctx.restore();
+      ctx.beginPath(); ctx.roundRect(e.x, e.y, e.w, e.h, e.radius == null ? 10 : e.radius);
+      ctx.strokeStyle = e.stroke || hexA(accent, 0.5); ctx.lineWidth = 1; ctx.stroke();
+    }
     if (e.corners !== false) cornerTicks(ctx, e.x + 6, e.y + 6, e.w - 12, e.h - 12, 11, hexA(accent, 0.85), true);
     if (e.bg) {
       const im = await loadImg(e.bg);
@@ -2872,10 +2895,16 @@
       if (im) ctx.drawImage(im, bx + 10, by + 10, 56, 56);
     }
     if (e.label) {
-      ctx.fillStyle = '#a8cfe4';
-      ctx.font = `500 15px ${FONT}`;
+      // 与 DOM 一致：标签限制在图标列内自动换行，整体垂直居中
+      ctx.font = `500 ${ls}px ${FONT}`;
+      const lines = wrapText(ctx, e.label, colW - 18);
+      const lh = Math.round(ls * 1.3);
+      const blockH = lines.length * lh;
+      const anchor = e.icon ? e.y + 121 : e.y + e.h / 2;
+      let ty = anchor - blockH / 2 + lh * 0.78;
+      ctx.fillStyle = e.labelColor || '#d4d4d4';
       ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.fillText(e.label, e.x + colW / 2, e.icon ? e.y + 121 : e.y + e.h / 2 + 6);
+      for (const line of lines) { ctx.fillText(line, e.x + colW / 2, ty); ty += lh; }
       ctx.textAlign = 'left';
     }
   }
