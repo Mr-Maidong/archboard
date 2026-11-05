@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- macOS 应用图标：824 内容区 + 圆角，标记居中缩放到 78% 留边 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1a1a"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none"
+        stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
+  <g transform="translate(190.65 190.65) scale(20.09)"
+     fill="none" stroke="#ffffff" stroke-width="2.1"
+     stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5.6" y="8.6" width="13.2" height="14.4" rx="2.8"/>
+    <path d="M19.2 15.8h4"/>
+    <circle cx="26.2" cy="15.8" r="2.7" fill="#ffffff" stroke="none"/>
+  </g>
+</svg>

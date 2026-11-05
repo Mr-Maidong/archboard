@@ -1,0 +1,45 @@
+appId: com.maidong.archboard
+productName: Archboard          # 用 ASCII：文件名、体积统计、更新包路径都会用到
+copyright: © maidong · github.com/Mr-Maidong
+
+directories:
+  output: dist
+  buildResources: build
+
+# 只收运行时真正需要的文件；docs/、README、_headers 不进包
+files:
+  - index.html
+  - app.js
+  - app.css
+  - brand/**/*
+  - main.js
+  - package.json
+
+asar: true
+compression: maximum
+
+mac:
+  category: public.app-category.graphics-design
+  darkModeSupport: true
+  hardenedRuntime: true
+  # 没有 Apple Developer 证书时不要开公证，否则构建直接失败
+  # notarize: true
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip          # 自动更新用；没有更新服务可以先删掉
+      arch: [arm64, x64]
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false   # 卸载不删工程数据
+  shortcutName: 架构板

@@ -30,13 +30,14 @@
 
 | 特点 | 说明 |
 |---|---|
-| **零依赖、零构建** | 只有 `index.html` + `app.js` + `app.css` + `brand/`，没有框架、没有打包、没有 `node_modules`。你读到的源码就是运行的代码。 |
+| **零依赖、零构建** | 网页本身就是产物：只有 `index.html` + `app.js` + `app.css` + `brand/`，没有框架、没有打包。桌面版的外壳（`main.js` + electron-builder）只在打包时介入，不改动前端源码。 |
 | **像素级对齐** | 平移与缩放都对齐到设备像素，1px 描边不会因为亚像素重采样而发虚、闪烁；缩放后按当前倍率重新栅格化。 |
 | **细线框视觉** | 发丝线 + 留白 + 单一结构色，实时测量用琥珀色。默认无阴影、无渐变糊边，需要时可单独给卡片开外阴影。 |
 | **结构化的对象** | 画布 / 层带面板 / 卡片 / 文字 / 图片 / 连线六类对象，不是自由画笔。 |
 | **连线自动吸附** | 连线绑定到两个元素，元素移动时线跟着走，端点自动吸附到最近的边。 |
 | **对齐与吸附** | 拖动时出现对齐参考线并自动吸附；工具栏提供 6 种对齐、2 种等距分布。 |
 | **本地存储** | IndexedDB 存工程与图片二进制（容量以 GB 计），localStorage 只存一份引用镜像。 |
+| **SVG 直接粘贴** | 复制一段 SVG 源码或网页里的 SVG 图形，`⌘V` 就落到画布上，按 `viewBox` 定尺寸，自动清掉脚本与外链。 |
 | **三种导出** | `.archboard` 工程包（ZIP，图片二进制）、纯 JSON、PNG（2 倍分辨率）。 |
 | **键盘优先** | 单手就能完成建、连、选、对齐、复制、分组。 |
 | **离线可用** | 首次加载后完全离线，不需要网络请求。 |
@@ -71,6 +72,37 @@ npx wrangler pages deploy . --project-name archboard
 
 Chrome / Edge 89+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩）与 `IndexedDB`。
 界面按桌面端设计，未针对移动端适配。
+
+### 桌面端（macOS / Windows）
+
+同一份源码用 Electron 打包成 `.dmg` 与 `.exe`，**前端代码一行都没改**——外壳只有一个 `main.js`。
+
+```bash
+npm install          # 装 electron 与 electron-builder，仅打包时需要
+npm start            # 以桌面应用方式运行
+npm run dist:mac     # → dist/Archboard-1.0.0-arm64.dmg（arm64 与 x64 各一份）
+npm run dist:win     # → dist/Archboard-1.0.0-x64.exe（NSIS 安装包）
+```
+
+网页版一行命令都不用动：目录根仍然是 `index.html`，`npx wrangler pages deploy .` 照旧。
+
+选 Electron 而不是 Tauri 这类更轻的外壳，理由只有一条：这个工具的两条核心链路——导出（`createObjectURL` + `a.download`）和存档（在 IndexedDB 里存图片二进制）——正好都是 macOS 上 WKWebView 的弱项。Electron 两端都是同一个 Chromium，行为和浏览器里完全一致，所以桌面版不需要重写导出、也不需要把图片搬去磁盘。
+
+桌面版与网页版的差异：
+
+| 项 | 说明 |
+|---|---|
+| 数据位置 | IndexedDB 按 origin 隔离，网页版（`localhost`）的工程不会自动出现在桌面版里。迁移：网页版导出 `.archboard`，桌面版「导入」。 |
+| 导出位置 | 走 Chromium 默认下载目录（一般是「下载」/ `Downloads`）。 |
+| 快捷键 | 菜单刻意不放「撤销 / 重做 / 全选」：它们的 `⌘Z` `⇧⌘Z` `⌘A` 在画布上另有含义，而 Electron 菜单的优先级高于页面 keydown，会把键抢走。 |
+
+自检：`npm run smoke` 会启动应用、探一遍协议 origin、IndexedDB 的 2MB Blob 读写、`CompressionStream` 是否可用，并把截图写到 `.smoke/smoke.png`。
+
+签名与分发（公开发布时才需要）：
+
+- **macOS**：需要 Apple Developer 账号，配置 `CSC_LINK` / `CSC_KEY_PASSWORD` 环境变量后在 `electron-builder.yml` 里打开 `mac.notarize`。未签名的包，用户首次打开要右键 →「打开」。
+- **Windows**：未签名会触发 SmartScreen 警告。OV/EV 证书同样走 `CSC_LINK`，或改用 Azure Trusted Signing。
+- **跨平台构建**：dmg 在 mac 上打；nsis 建议放 Windows（或 GitHub Actions 的 `windows-latest`）打，别指望一台机器全出。
 
 ## 四、界面
 
@@ -203,7 +235,22 @@ Chrome / Edge 89+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩�
 **导入**：点右上角导入按钮选文件，或者直接把 `.archboard` / `.json` **拖进窗口**。
 导入会替换当前工程（可 `⌘Z` 撤销）。
 
-### 5.11 快捷键总表
+### 5.11 粘贴外部 SVG
+
+从任何地方复制来的 SVG（源码字符串，或网页 / 设计工具里直接复制的图形），在画布上按 `⌘V` / `Ctrl+V` 直接落到视口中心，存成一个图片元素。
+
+| 行为 | 说明 |
+|---|---|
+| 识别范围 | 剪贴板里的 `text/plain` 或 `text/html` 中含 `<svg…></svg>` 就认，只取这一段 |
+| 尺寸 | 优先按 `viewBox`，其次 `width`/`height`；超过 520×380 等比缩小，都没有则按 240×240 |
+| 安全清理 | 去掉 `<script>`、`<foreignObject>`、`iframe`、`on*` 事件属性，以及指向外部的 `href`；只留能安全渲染的部分 |
+| 不打断输入 | 光标在输入框 / 文本域里时不拦截，正常粘贴文字；剪贴板不是 SVG 时也不拦截 |
+| 后续编辑 | 和普通图片一样：拖动、缩放、圆角、透明度、填充方式；进撤销历史，`⌘Z` 可撤 |
+| 存储 | 以 `data:image/svg+xml` 内联，导出 `.archboard` 时自动抽成 `assets/*.svg` |
+
+形状本身的矢量性保留：放大到 300% 依然锐利，导出 PNG 也按 2 倍分辨率重绘。
+
+### 5.12 快捷键总表
 
 | 分类 | 快捷键 | 作用 |
 |---|---|---|
@@ -270,6 +317,10 @@ arch-editor/
 ├── app.css         # 全部样式（细线框主题）
 ├── brand/          # 图记：mark / favicon / wordmark
 ├── docs/           # 截图与控制台接口文档
+├── main.js         # Electron 外壳：自定义协议、窗口权限、菜单
+├── package.json    # 只有打包桌面版时才需要
+├── electron-builder.yml
+├── build/          # 应用图标：icon.svg → icon.png（1024²）
 └── README.md
 ```
 

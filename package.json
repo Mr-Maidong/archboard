@@ -1,0 +1,27 @@
+{
+  "name": "archboard",
+  "productName": "Archboard",
+  "version": "1.0.0",
+  "description": "架构板 · 用细线框精确排布系统架构图",
+  "main": "main.js",
+  "private": true,
+  "homepage": "https://github.com/Mr-Maidong",
+  "author": {
+    "name": "maidong",
+    "email": "15557111679@163.com",
+    "url": "https://github.com/Mr-Maidong"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "ARCHBOARD_SMOKE=.smoke electron .",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder -mw"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  }
+}

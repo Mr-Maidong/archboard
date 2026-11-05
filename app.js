@@ -1815,6 +1815,98 @@
     setTool('select');
   }
 
+  /* ------------------------------------------------------------ 粘贴 SVG */
+  // 外部 SVG 源码（或从网页复制来的 SVG 图形）直接 ⌘V 落到画布上，存成图片元素
+  const SVG_MAX_BYTES = 1.5 * 1024 * 1024;
+
+  function svgMarkup(text) {
+    const m = String(text || '').match(/<svg[\s\S]*?<\/svg>/i);
+    return m ? m[0] : '';
+  }
+
+  // 只保留能安全渲染的部分：脚本、事件属性、外链资源与 foreignObject 一律去掉
+  function sanitizeSvg(src) {
+    return String(src)
+      .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<\s*foreignObject[\s\S]*?<\s*\/\s*foreignObject\s*>/gi, '')
+      .replace(/<\s*iframe[\s\S]*?<\s*\/\s*iframe\s*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
+      .replace(/\s(href|xlink:href)\s*=\s*"(?!#|data:)[^"]*"/gi, '')
+      .replace(/\s(href|xlink:href)\s*=\s*'(?!#|data:)[^']*'/gi, '');
+  }
+
+  // 尺寸优先取 viewBox，其次 width/height，都没有就给 240×240 的方框
+  function svgBox(src) {
+    let w = 0, h = 0;
+    const vb = /viewBox\s*=\s*["']([^"']+)["']/i.exec(src);
+    if (vb) {
+      const p = vb[1].trim().split(/[\s,]+/).map(Number);
+      if (p.length === 4 && p[2] > 0 && p[3] > 0) { w = p[2]; h = p[3]; }
+    }
+    if (!w || !h) {
+      const wm = /<svg[^>]*\swidth\s*=\s*["']([\d.]+)/i.exec(src);
+      const hm = /<svg[^>]*\sheight\s*=\s*["']([\d.]+)/i.exec(src);
+      if (wm && hm) { w = +wm[1]; h = +hm[1]; }
+    }
+    if (!w || !h) { w = 240; h = 240; }
+    return { w, h };
+  }
+
+  function svgDataUrl(src) {
+    const bytes = new TextEncoder().encode(src);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return 'data:image/svg+xml;base64,' + btoa(bin);
+  }
+
+  // 落到画布上：默认放在视口中心，传 x/y 则按左上角定位
+  function insertSvg(svgText, opts) {
+    const raw = svgMarkup(svgText);
+    if (!raw) return null;
+    if (raw.length > SVG_MAX_BYTES) { toast('SVG 太大，超过 1.5MB'); return null; }
+    const clean = sanitizeSvg(raw);
+    const box = svgBox(clean);
+    const o = opts || {};
+    const maxW = o.w || 520, maxH = o.h || 380;
+    const k = Math.min(1, maxW / box.w, maxH / box.h);
+    const W = o.w || Math.max(24, Math.round(box.w * k));
+    const H = o.h || Math.max(24, Math.round(box.h * k));
+    let cx, cy;
+    if (o.x != null && o.y != null) {
+      cx = o.x + W / 2; cy = o.y + H / 2;
+    } else {
+      const r = viewport.getBoundingClientRect();
+      const c = toStage(r.left + r.width / 2, r.top + r.height / 2);
+      cx = c.x; cy = c.y;
+    }
+    pushHistory();
+    const e = {
+      id: uid('i'), type: 'image',
+      x: round(cx - W / 2), y: round(cy - H / 2), w: W, h: H,
+      src: svgDataUrl(clean), fit: 'fill',
+    };
+    state.elements.push(e);
+    sel.clear(); sel.add(e.id);
+    renderAll(); commit(); saveSoon();
+    toast('已粘贴 SVG · ' + W + '×' + H);
+    return e;
+  }
+
+  function onPaste(ev) {
+    const t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    const dt = ev.clipboardData;
+    if (!dt) return;
+    const src = svgMarkup(dt.getData('text/html')) || svgMarkup(dt.getData('text/plain'));
+    if (!src) return;
+    ev.preventDefault();
+    insertSvg(src);
+  }
+  document.addEventListener('paste', onPaste);
+
   /* ---------------------------------------------------------------- 检查器 */
   let inspectorFor = null;
   function renderInspectorLight() {
@@ -3881,6 +3973,7 @@
       { name: 'layout', desc: '按行或列依次排开', args: { ids: ['id'], dir: 'row|column', gap: 24, x: 0, y: 0 } },
       { name: 'connect', desc: '在两个元素之间连一条箭头', args: { from: 'id', to: 'id', mode: 'bezier|straight|elbow', dash: 'solid|dash|dot', head: 'none|arrow|triangle|circle', color: '#c8c8c8' } },
       { name: 'view', desc: '视图：fit=true 适应窗口，zoom 指定缩放，ids 聚焦选区', args: { fit: true, zoom: 0.8, ids: ['id'] } },
+      { name: 'svg', desc: '把一段 SVG 源码放到画布上（自动去脚本、按 viewBox 定尺寸）', args: { svg: '<svg viewBox="0 0 24 24">…</svg>', x: 0, y: 0, w: 0, h: 0 } },
       { name: 'exportPNG', desc: '导出 PNG，返回 dataURL', args: { scale: 2 } },
       { name: 'exportJSON', desc: '导出当前工程 JSON 字符串', args: {} },
       { name: 'importJSON', desc: '载入工程 JSON（整体替换当前画布）', args: { json: '{"elements":[...]}' } },
@@ -4098,6 +4191,12 @@
       return ok({ zoom: +zoom.toFixed(3) });
     }
 
+    function svgTool(a) {
+      const e = insertSvg(a && a.svg, { x: a && a.x, y: a && a.y, w: a && a.w, h: a && a.h });
+      if (!e) return fail('bad_svg', '没有找到 <svg> 标签，或体积超过 1.5MB');
+      return ok({ id: e.id, w: e.w, h: e.h });
+    }
+
     async function exportPNG_(a) {
       const cv = await buildExportCanvas(a && a.region, (a && a.scale) || 2);
       return ok({ width: cv.width, height: cv.height, dataURL: cv.toDataURL('image/png') });
@@ -4137,7 +4236,7 @@
       help, guide,
       state: state_, find, create, update, remove, duplicate,
       select: select_, align: align_, distribute, layout, connect, view,
-      exportPNG: exportPNG_, exportJSON, importJSON,
+      svg: svgTool, exportPNG: exportPNG_, exportJSON, importJSON,
       undo: undo_, redo: redo_, clear,
     };
 

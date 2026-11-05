@@ -52,6 +52,7 @@ archboard.call('create', { type: 'card', x: 0, y: 0, title: '网关' })
 | `layout` | 按行或列依次排开 | `ids`, `dir`: `row`/`column`, `gap`, `x`, `y` |
 | `connect` | 两个元素之间连线 | `from`, `to`, `mode`, `dash`, `head`, `color` |
 | `view` | 视图：适应窗口 / 指定缩放 / 聚焦选区 | `fit`, `zoom`, `ids` |
+| `svg` | 把一段 SVG 源码放到画布上（自动清洗、按 viewBox 定尺寸） | `svg`, `x`, `y`, `w`, `h` |
 | `exportPNG` | 导出 PNG，返回 dataURL | `scale`（默认 2） |
 | `exportJSON` | 导出工程 JSON 字符串 | — |
 | `importJSON` | 载入工程 JSON（整体替换） | `json` |
