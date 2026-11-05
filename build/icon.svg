@@ -1,19 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- macOS 应用图标：824 内容区 + 圆角，标记居中缩放到 78% 留边 -->
+  <!-- macOS 应用图标：824 内容区 + 圆角；画板标记居中，描边比界面里略细，免得大尺寸下发闷 -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1a1a1a"/>
-      <stop offset="1" stop-color="#050505"/>
+      <stop offset="0" stop-color="#1c1c1c"/>
+      <stop offset="1" stop-color="#060606"/>
     </linearGradient>
   </defs>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
   <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none"
         stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-  <g transform="translate(190.65 190.65) scale(20.09)"
-     fill="none" stroke="#ffffff" stroke-width="2.1"
-     stroke-linecap="round" stroke-linejoin="round">
-    <rect x="5.6" y="8.6" width="13.2" height="14.4" rx="2.8"/>
-    <path d="M19.2 15.8h4"/>
-    <circle cx="26.2" cy="15.8" r="2.7" fill="#ffffff" stroke="none"/>
+  <g transform="translate(228 228) scale(35.5)" fill="none">
+    <rect x="1.5" y="1.5" width="13" height="13" rx="2.6" stroke="#ffffff" stroke-width="1.45"/>
+    <path d="M8 4.1 L9.21 6.79 L11.9 8 L9.21 9.21 L8 11.9 L6.79 9.21 L4.1 8 L6.79 6.79 Z" fill="#ffffff"/>
   </g>
 </svg>
