@@ -913,7 +913,6 @@
       n.style.fontSize = (e.size || 24) + 'px';
       n.style.fontWeight = e.weight || 500;
       n.style.textAlign = e.align || 'left';
-      n.style.justifyContent = e.align === 'center' ? 'center' : e.align === 'right' ? 'flex-end' : 'flex-start';
     }
 
     if (e.type === 'panel') {
@@ -956,7 +955,10 @@
           </div>
         </div>`;
     } else if (e.type === 'text') {
-      n.innerHTML = `<div class="content">${esc(e.text || '')}</div>`;
+      // 对齐要落在 .content 上：它是真正的 flex 容器，设在 .el 上不生效
+      const al = e.align || 'left';
+      const jc = al === 'center' ? 'center' : al === 'right' ? 'flex-end' : 'flex-start';
+      n.innerHTML = `<div class="content" style="justify-content:${jc};text-align:${al}">${esc(e.text || '')}</div>`;
     } else if (e.type === 'image') {
       const fit = e.fit || 'cover';
       if (fit === 'tile') {
@@ -1998,41 +2000,116 @@
       <div class="hintline">连线跟随元素移动，不需要手动摆；箭头类型和颜色都可以单独调。</div>`;
   }
 
+  /* ------------------------------------------------------------ 批量检查器 */
+  // 某字段在整批选中里是否一致；不一致返回 null（= 不改变）
+  function multiSame(list, k) {
+    const v = list[0][k] == null ? null : list[0][k];
+    return list.every((e) => (e[k] == null ? null : e[k]) === v) ? v : null;
+  }
+
+  // 批量色块的预览色：取第一个适用元素的实际生效值
+  function multiColor(list, k) {
+    const e = list.find((x) => colorApplies(x, k)) || list[0];
+    return e ? colorOf(e, k) : 'transparent';
+  }
+
+  function colorApplies(e, k) {
+    if (k === 'color') return e.type === 'text';
+    if (k === 'stroke') return e.type === 'card' || e.type === 'panel';
+    if (k === 'fill' || k === 'titleColor' || k === 'subColor') return e.type === 'card';
+    if (k === 'fillColor' || k === 'labelColor') return e.type === 'panel';
+    return false;
+  }
+
+  function colorOf(e, k) {
+    if (k === 'stroke') return e.stroke || hexA(e.accent || '#7ea6ff', e.type === 'panel' ? 0.6 : 0.5);
+    if (k === 'fill') return e.fill || 'rgba(10,10,10,.55)';
+    if (k === 'fillColor') return panelFill(e);
+    if (k === 'titleColor') return e.titleColor || '#f5f5f5';
+    if (k === 'subColor') return e.subColor || '#a3a3a3';
+    if (k === 'labelColor') return e.labelColor || '#d4d4d4';
+    if (k === 'color') return e.color || '#f2f2f2';
+    return '#7ea6ff';
+  }
+
+  function setColor(e, k, val) {
+    if (!colorApplies(e, k)) return false;
+    if (k === 'fillColor') {
+      const c = parseColor(val) || { r: 20, g: 28, b: 45, a: 1 };
+      e.fillColor = `#${hx2(c.r)}${hx2(c.g)}${hx2(c.b)}`;
+      e.fillAlpha = Math.round(c.a * 100) / 100;
+      e.fill = null;
+      return true;
+    }
+    e[k] = val;
+    return true;
+  }
+
+  // 取色拖动时只改对应节点的样式，不重建 DOM（批量也顺滑）
+  function paintColor(e, k, val) {
+    const n = nodes.get(e.id);
+    if (!n) return;
+    if (k === 'stroke') { n.style.borderColor = val; if (e.type === 'card') n.style.setProperty('--accent', val); }
+    else if (k === 'fill') n.style.background = val;
+    else if (k === 'fillColor') n.style.background = panelFill(e);
+    else if (k === 'titleColor') { const t = n.querySelector('.title'); if (t) t.style.color = val; }
+    else if (k === 'subColor') { const sb = n.querySelector('.sub'); if (sb) sb.style.color = val; }
+    else if (k === 'labelColor') { const l = n.querySelector('.label'); if (l) l.style.color = val; }
+    else if (k === 'color') n.style.color = val;
+  }
+
   function multiInspector(list) {
-    const some = (fn) => list.some(fn);
-    const hasCard = some((e) => e.type === 'card');
-    const hasLooks = some((e) => e.type === 'card' || e.type === 'panel' || e.type === 'text');
-    // 所有选中元素该字段一致时回填，否则留空（留空 = 不改变）
-    const val = (k) => {
-      const vals = list.map((e) => (e[k] == null ? '' : e[k]));
-      const same = vals.every((v) => v === vals[0]);
-      return same && vals[0] !== '' ? ` value="${vals[0]}"` : '';
+    const types = [...new Set(list.map((e) => e.type))];
+    const has = (t) => types.includes(t);
+    const hasCard = has('card'), hasPanel = has('panel'), hasText = has('text');
+    const count = (t) => list.filter((e) => e.type === t).length;
+
+    const num = (k, ph, step) => {
+      const v = multiSame(list, k);
+      return `<input type="number" data-m="${k}"${step ? ` step="${step}"` : ''} placeholder="${ph || '不改变'}"${v != null ? ` value="${v}"` : ''} />`;
     };
+    const sel = (k, opts) => {
+      const v = multiSame(list, k);
+      const body = opts.map(([val, txt]) => `<option value="${val}"${v != null && String(v) === String(val) ? ' selected' : ''}>${txt}</option>`).join('');
+      return `<select data-m="${k}"><option value="">不改变</option>${body}</select>`;
+    };
+    const col = (k) => `<button class="csw" data-mcolor="${k}" title="批量取色"><i style="background:${multiColor(list, k)}"></i></button>`;
+    const head = (t, name) => `<div class="subhead">${name} × ${count(t)}</div>`;
+
     return `<h4>${list.length} 个元素</h4>
-      <div class="row"><label>尺寸</label>
-        <input type="number" data-m="w" placeholder="宽"${val('w')} />
-        <input type="number" data-m="h" placeholder="高"${val('h')} /></div>
-      <div class="row"><label>圆角</label>
-        <input type="number" data-m="radius" placeholder="圆角"${val('radius')} />
-        <input type="number" data-m="opacity" step="0.1" min="0" max="1" placeholder="透明度"${val('opacity')} /></div>
-      ${hasLooks ? `<div class="row"><label>颜色</label>${swatches(null)}</div>` : ''}
-      ${hasCard ? `<div class="row"><label>图标</label>
+      <div class="row"><label>尺寸</label>${num('w', '宽')}${num('h', '高')}</div>
+      <div class="row"><label>圆角</label>${num('radius', '圆角')}${num('opacity', '透明度', '0.1')}</div>
+      ${hasPanel ? `${head('panel', '层带面板')}
+        <div class="row"><label>标签字</label>${num('labelSize', '字号')}${col('labelColor')}</div>
+        <div class="row"><label>强调色</label>${swatches(null)}</div>
+        <div class="row"><label>边框</label>${col('stroke')}
+          <label style="width:auto;flex:0 0 auto">背景</label>${col('fillColor')}</div>` : ''}
+      ${hasCard ? `${head('card', '卡片')}
+        <div class="row"><label>标题字</label>${num('titleSize', '字号')}${col('titleColor')}</div>
+        <div class="row"><label>说明字</label>${num('subSize', '字号')}${col('subColor')}</div>
+        <div class="row"><label>边框</label>${col('stroke')}
+          <label style="width:auto;flex:0 0 auto">背景</label>${col('fill')}</div>
+        <div class="row"><label>图标</label>
           <label class="mini-btn upload" style="flex:1;display:flex;align-items:center;justify-content:center">批量上传
             <input type="file" data-mact="icon" accept="image/*" hidden /></label>
           <button class="mini-btn" data-mact="iconClear" style="width:52px">清除</button></div>
-        <div class="row"><label>布局</label>
-          <select data-m="layout">
-            <option value="">不改变</option>
-            <option value="row">图标左 · 文字右</option>
-            <option value="stack">图标上 · 文字下</option>
-          </select></div>
-` : ''}
+        <div class="row"><label>布局</label>${sel('layout', [['row', '图标左 · 文字右'], ['stack', '图标上 · 文字下']])}</div>` : ''}
+      ${hasCard || hasPanel ? `<div class="row"><label>阴影</label>${sel('shadow', [['0', '无'], ['1', '弱'], ['2', '中'], ['3', '强']])}</div>
+        <div class="row"><label>角标</label>${sel('corners', [['1', '显示'], ['0', '隐藏']])}</div>` : ''}
+      ${hasText ? `${head('text', '文字')}
+        <div class="row"><label>字号</label>${num('size', '字号')}${col('color')}</div>
+        <div class="row"><label>字重</label>${sel('weight', [['400', '常规'], ['500', '中等'], ['600', '半粗'], ['700', '加粗']])}</div>
+        <div class="row"><label>对齐</label>${sel('align', [['left', '左对齐'], ['center', '居中'], ['right', '右对齐']])}</div>` : ''}
       <div class="divider"></div>
       <div class="mini"><button data-act="centerCanvas">居中于画布</button></div>
-      <div class="hintline">留空的项不改变；填了数值就统一设成该值。</div>`;
+      <div class="hintline">留空的项不改变；色块点开可批量改色，覆盖该类型元素的同名设置。</div>`;
   }
 
   function bindMulti(list) {
+    const LABEL = {
+      w: '宽度', h: '高度', radius: '圆角', opacity: '透明度', titleSize: '标题字号', subSize: '说明字号',
+      labelSize: '标签字号', size: '字号', layout: '布局', shadow: '阴影', corners: '角标', weight: '字重', align: '对齐',
+    };
     // 一次批量改动 = 一条历史；改完重建界面，字段会按新状态回填
     const apply = (fn, label) => {
       if (!list.length) return;
@@ -2044,32 +2121,57 @@
       setStatus(`${label} · 已应用到 ${n} 个${n === list.length ? '' : '（部分类型不适用）'}`);
     };
 
-    inspector.querySelectorAll('[data-m]').forEach((inp) => {
+    inspector.querySelectorAll('input[data-m]').forEach((inp) => {
       const k = inp.dataset.m;
-      if (inp.tagName === 'SELECT') {
-        inp.onchange = () => {
-          const v = inp.value;
-          if (!v) return;
-          apply((e) => {
-            if (e.type !== 'card') return false;
-            if (k === 'layout') e.layout = v;
-            return true;
-          }, k === 'layout' ? '布局' : '小圆点');
-        };
-        return;
-      }
       inp.onchange = () => {
         const raw = String(inp.value).trim();
         if (raw === '') return;
         const num = Number(raw);
         if (!Number.isFinite(num)) return;
         apply((e) => {
-          if (k === 'w') { e.w = Math.max(20, num); return true; }
-          if (k === 'h') { e.h = Math.max(16, num); return true; }
-          if (k === 'opacity') { e.opacity = Math.max(0, Math.min(1, num)); return true; }
-          e.radius = Math.max(0, num);
-          return true;
-        }, k === 'w' ? '宽度' : k === 'h' ? '高度' : k === 'opacity' ? '透明度' : '圆角');
+          switch (k) {
+            case 'w': e.w = Math.max(20, num); return true;
+            case 'h': e.h = Math.max(16, num); return true;
+            case 'radius': e.radius = Math.max(0, num); return true;
+            case 'opacity': e.opacity = Math.max(0, Math.min(1, num)); return true;
+            case 'titleSize': if (e.type !== 'card') return false; e.titleSize = clampNum(num, 23, 8, 96); return true;
+            case 'subSize': if (e.type !== 'card') return false; e.subSize = clampNum(num, 15, 8, 72); return true;
+            case 'labelSize': if (e.type !== 'panel') return false; e.labelSize = clampNum(num, 15, 8, 64); return true;
+            case 'size': if (e.type !== 'text') return false; e.size = clampNum(num, 24, 8, 200); return true;
+            default: return false;
+          }
+        }, LABEL[k] || '批量修改');
+      };
+    });
+
+    inspector.querySelectorAll('select[data-m]').forEach((s) => {
+      const k = s.dataset.m;
+      s.onchange = () => {
+        const v = s.value;
+        if (v === '') return;
+        apply((e) => {
+          switch (k) {
+            case 'layout': if (e.type !== 'card') return false; e.layout = v; return true;
+            case 'shadow': if (e.type !== 'card' && e.type !== 'panel') return false; e.shadow = Number(v) || 0; return true;
+            case 'corners': if (e.type !== 'card' && e.type !== 'panel') return false; e.corners = v === '1'; return true;
+            case 'weight': if (e.type !== 'text') return false; e.weight = Number(v); return true;
+            case 'align': if (e.type !== 'text') return false; e.align = v; return true;
+            default: return false;
+          }
+        }, LABEL[k] || '批量修改');
+      };
+    });
+
+    inspector.querySelectorAll('[data-mcolor]').forEach((btn) => {
+      const k = btn.dataset.mcolor;
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        const cur = multiColor(list, k);
+        openColorPicker(btn, cur, (val) => {
+          for (const e of list) if (setColor(e, k, val)) paintColor(e, k, val);
+          btn.querySelector('i').style.background = val;
+          saveSoon();
+        });
       };
     });
 
@@ -2077,11 +2179,9 @@
       sw.onclick = () => {
         const col = sw.dataset.color;
         apply((e) => {
-          if (e.type === 'text') e.color = col;
-          else if (e.type === 'card' || e.type === 'panel') e.accent = col;
-          else return false;
-          return true;
-        }, '颜色');
+          if (e.type === 'panel') { e.accent = col; return true; }
+          return false;
+        }, '强调色');
       };
     });
 

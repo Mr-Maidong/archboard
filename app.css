@@ -366,6 +366,10 @@ body {
 }
 #inspector .ins-empty { color: var(--dim); line-height: 1.8; }
 #inspector .ins-empty span { color: var(--faint); font-size: 12px; }
+#inspector .subhead {
+  margin: 14px 0 8px; font: 11px/1 var(--mono); letter-spacing: .08em;
+  color: var(--dim); text-transform: uppercase;
+}
 #inspector h4 {
   margin: 0 0 10px; font-size: 12px; font-weight: 600;
   color: var(--dim); letter-spacing: .16em;
