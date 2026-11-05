@@ -3880,7 +3880,7 @@
       { name: 'distribute', desc: '沿水平或垂直方向等距分布（至少 3 个）', args: { ids: ['id'], axis: 'h|v', gap: 24 } },
       { name: 'layout', desc: '按行或列依次排开', args: { ids: ['id'], dir: 'row|column', gap: 24, x: 0, y: 0 } },
       { name: 'connect', desc: '在两个元素之间连一条箭头', args: { from: 'id', to: 'id', mode: 'bezier|straight|elbow', dash: 'solid|dash|dot', head: 'none|arrow|triangle|circle', color: '#c8c8c8' } },
-      { name: 'view', desc: '视图：fti=true 适应窗口，zoom 指定缩放，ids 聚焦选区', args: { fit: true, zoom: 0.8, ids: ['id'] } },
+      { name: 'view', desc: '视图：fit=true 适应窗口，zoom 指定缩放，ids 聚焦选区', args: { fit: true, zoom: 0.8, ids: ['id'] } },
       { name: 'exportPNG', desc: '导出 PNG，返回 dataURL', args: { scale: 2 } },
       { name: 'exportJSON', desc: '导出当前工程 JSON 字符串', args: {} },
       { name: 'importJSON', desc: '载入工程 JSON（整体替换当前画布）', args: { json: '{"elements":[...]}' } },
