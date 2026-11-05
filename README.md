@@ -2,7 +2,7 @@
 
 用细线框精确排布系统架构图的前端工具。纯静态、零依赖、离线可用，数据存在浏览器本地，不需要后端，也不需要构建。
 
-![status](https://img.shields.io/badge/build-none-brightgreen) ![deps](https://img.shields.io/badge/dependencies-0-blue) ![size](https://img.shields.io/badge/size-~290KB-lightgrey)
+![status](https://img.shields.io/badge/build-none-brightgreen) ![deps](https://img.shields.io/badge/dependencies-0-blue) ![size](https://img.shields.io/badge/size-~200KB-lightgrey)
 
 ---
 
@@ -55,7 +55,7 @@ npx wrangler pages deploy . --project-name archboard
 
 ### 浏览器要求
 
-Chrome / Edge 111+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩）与 `IndexedDB`。
+Chrome / Edge 89+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩）与 `IndexedDB`。
 界面按桌面端设计，未针对移动端适配。
 
 ## 四、界面
@@ -86,15 +86,15 @@ Chrome / Edge 111+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩
 | 工具 | 快捷键 | 用法 |
 |---|---|---|
 | 选择 | `V` / `⌘1` | 点选、框选、拖动 |
-| 面板 | `P` / `⌘2` | 在空白处按下拖出矩形；单击则按默认尺寸放置 |
-| 卡片 | `C` / `⌘3` | 同上，卡片是带图标与说明的节点 |
-| 文字 | `T` / `⌘4` | 点击放置，随后直接输入 |
-| 图片 | `I` / `⌘5` | 点击后选文件；也可以把图片直接拖进窗口 |
+| 面板 | `P` / `⌘2` | 空白处单击放置 1800×140 的层带，再拖角点调大小 |
+| 卡片 | `C` / `⌘3` | 空白处单击放置 390×92 的卡片（带图标与说明的节点）|
+| 文字 | `T` / `⌘4` | 空白处单击放置 420×44 的文字，内容在右侧检查器改 |
+| 图片 | `I` / `⌘5` | 空白处单击放置 96×96 占位图，再在检查器里上传；图片也可直接拖进窗口 |
 | 连线 | `A` / `⌘6` | 先点起点元素，再点终点元素 |
-| 画布 | `N` / `⌘7` | 在空白处拖出一块新的画布区域 |
+| 画布 | `N` / `⌘7` | 空白处单击创建一块 1600×900 的画布，再拖角点调大小 |
 
 > `⌘+数字` 在浏览器里会被占用成「切换标签页」，此时用 `⌥+1~7`，行为完全一致。
-> 放完一个对象后工具会自动回到「选择」，需要连续放置时按住工具对应的字母键不放。
+> 放完一个对象后工具会自动回到「选择」，避免误放。
 
 ### 5.2 选择与移动
 
