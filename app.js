@@ -918,6 +918,7 @@
 
     if (e.type === 'panel') {
       const accent = e.accent || '#7ea6ff';
+      if (e.corners === false) n.classList.add('no-corners');
       n.innerHTML = `
         <div class="content">
           <div class="col">
@@ -937,14 +938,20 @@
       }
     } else if (e.type === 'card') {
       const accent = e.accent || '#7ea6ff';
-      n.style.borderColor = e.stroke || hexA(accent, 0.5);
+      const edge = e.stroke || hexA(accent, 0.5);
+      n.style.borderColor = edge;
+      n.style.setProperty('--accent', edge);            // 角标跟随边框色
       if (e.layout === 'stack') n.classList.add('stack');
+      if (e.corners === false) n.classList.add('no-corners');
+      if (e.shadow) n.style.boxShadow = SHADOW[e.shadow] || '';
+      const ts = clampNum(e.titleSize, 23, 8, 96);
+      const ss = clampNum(e.subSize, 15, 8, 72);
       n.innerHTML = `
         <div class="content">
-          ${e.icon ? `<img class="ico" src="${e.icon}" alt="">` : (e.dot === false || e.layout === 'stack' ? '' : `<span class="dot" style="border:1px solid ${accent};background:transparent"></span>`)}
+          ${e.icon ? `<img class="ico" src="${e.icon}" alt="">` : ''}
           <div class="txt">
-            <div class="title">${esc(e.title || '')}</div>
-            ${e.sub ? `<div class="sub">${esc(e.sub)}</div>` : ''}
+            <div class="title" style="font-size:${ts}px;color:${e.titleColor || '#f5f5f5'}">${esc(e.title || '')}</div>
+            ${e.sub ? `<div class="sub" style="font-size:${ss}px;color:${e.subColor || '#a3a3a3'}">${esc(e.sub)}</div>` : ''}
           </div>
         </div>`;
     } else if (e.type === 'text') {
@@ -973,6 +980,18 @@
   function esc(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
+  // 卡片外阴影档位（DOM 与导出共用同一套视觉）
+  const SHADOW = ['none',
+    '0 2px 8px rgba(0,0,0,.45)',
+    '0 6px 20px rgba(0,0,0,.55)',
+    '0 14px 36px rgba(0,0,0,.65)'];
+
+  function clampNum(v, dflt, lo, hi) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return dflt;
+    return Math.max(lo, Math.min(hi, n));
+  }
+
   function hexA(hex, a) {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
     if (!m) return hex;
@@ -1858,6 +1877,8 @@
     if (e.type === 'panel') {
       const fa = Math.round((e.fillAlpha == null ? 0.72 : e.fillAlpha) * 100);
       body += `<div class="row"><label>标签</label><input type="text" data-k="label" value="${esc(e.label || '')}" /></div>
+        <div class="row"><label>角标</label>
+          <label class="chk"><input type="checkbox" data-k="corners" ${e.corners === false ? '' : 'checked'} /> 显示四角</label></div>
         <div class="row"><label>强调色</label>${swatches(e.accent)}</div>
         <div class="row"><label>背景色</label>${colorSwatch('fillColor', panelFill(e))}
           <input class="rng" type="range" data-k="fillAlpha" min="0" max="100" step="1" value="${fa}" />
@@ -1867,9 +1888,25 @@
             <input type="file" data-act="bg" accept="image/*" hidden /></label>
           <button class="mini-btn" data-act="bgClear" style="width:52px" ${e.bg ? '' : 'disabled'}>清除</button></div>`;
     } else if (e.type === 'card') {
+      const accent = e.accent || '#7ea6ff';
       body += `<div class="row"><label>标题</label><input type="text" data-k="title" value="${esc(e.title || '')}" /></div>
+        <div class="row"><label>标题字</label>
+          <input type="number" data-k="titleSize" min="8" max="96" step="1" value="${clampNum(e.titleSize, 23, 8, 96)}" />
+          ${colorSwatch('titleColor', e.titleColor || '#f5f5f5')}</div>
         <div class="row"><label>说明</label><input type="text" data-k="sub" value="${esc(e.sub || '')}" /></div>
-        <div class="row"><label>强调色</label>${swatches(e.accent)}</div>
+        <div class="row"><label>说明字</label>
+          <input type="number" data-k="subSize" min="8" max="72" step="1" value="${clampNum(e.subSize, 15, 8, 72)}" />
+          ${colorSwatch('subColor', e.subColor || '#a3a3a3')}</div>
+        <div class="row"><label>边框</label>${colorSwatch('stroke', e.stroke || hexA(accent, 0.5))}
+          <label style="width:auto;flex:0 0 auto">背景</label>${colorSwatch('fill', e.fill || 'rgba(10,10,10,.55)')}</div>
+        <div class="row"><label>阴影</label>
+          <select data-k="shadow">
+            <option value="0" ${!e.shadow ? 'selected' : ''}>无</option>
+            <option value="1" ${e.shadow === 1 ? 'selected' : ''}>弱</option>
+            <option value="2" ${e.shadow === 2 ? 'selected' : ''}>中</option>
+            <option value="3" ${e.shadow === 3 ? 'selected' : ''}>强</option>
+          </select>
+          <label class="chk"><input type="checkbox" data-k="corners" ${e.corners === false ? '' : 'checked'} /> 角标</label></div>
         <div class="row"><label>图标</label>
           <label class="mini-btn upload" style="flex:1;display:flex;align-items:center;justify-content:center">上传
             <input type="file" data-act="icon" accept="image/*" hidden /></label>
@@ -1878,10 +1915,7 @@
           <select data-k="layout">
             <option value="row" ${e.layout !== 'stack' ? 'selected' : ''}>图标左 · 文字右</option>
             <option value="stack" ${e.layout === 'stack' ? 'selected' : ''}>图标上 · 文字下</option>
-          </select></div>
-        <div class="row"><label>小圆点</label>
-          <label class="chk">
-            <input type="checkbox" data-k="dot" ${e.dot === false ? '' : 'checked'} /> 显示</label></div>`;
+          </select></div>`;
     } else if (e.type === 'text') {
       body += `<div class="row" style="align-items:flex-start"><label>内容</label>
           <textarea data-k="text">${esc(e.text || '')}</textarea></div>
@@ -1979,12 +2013,7 @@
             <option value="row">图标左 · 文字右</option>
             <option value="stack">图标上 · 文字下</option>
           </select></div>
-        <div class="row"><label>小圆点</label>
-          <select data-m="dot">
-            <option value="">不改变</option>
-            <option value="1">显示</option>
-            <option value="0">隐藏</option>
-          </select></div>` : ''}
+` : ''}
       <div class="divider"></div>
       <div class="mini"><button data-act="centerCanvas">居中于画布</button></div>
       <div class="hintline">留空的项不改变；填了数值就统一设成该值。</div>`;
@@ -2011,7 +2040,6 @@
           apply((e) => {
             if (e.type !== 'card') return false;
             if (k === 'layout') e.layout = v;
-            else e.dot = v === '1';
             return true;
           }, k === 'layout' ? '布局' : '小圆点');
         };
@@ -2085,7 +2113,10 @@
         if (inp.type === 'number') v = v === '' ? 0 : Number(v);
         if (k === 'fillAlpha') e.fillAlpha = Math.round(Number(v)) / 100;
         else e[k] = v;
-        if (k === 'dot') e.dot = !!v;
+        if (k === 'corners') e.corners = !!v;
+        if (k === 'shadow') e.shadow = Number(v) || 0;
+        if (k === 'titleSize') e.titleSize = clampNum(v, 23, 8, 96);
+        if (k === 'subSize') e.subSize = clampNum(v, 15, 8, 72);
         if (['x', 'y', 'w', 'h', 'radius', 'size', 'opacity', 'strokeW'].includes(k)) {
           if (k === 'w') e.w = Math.max(20, Number(v));
           if (k === 'h') e.h = Math.max(16, Number(v));
@@ -2131,7 +2162,12 @@
       const k = btn.dataset.color;
       btn.onclick = (ev) => {
         ev.stopPropagation();
-        const cur = k === 'fillColor' ? panelFill(e) : (e[k] || '#7ea6ff');
+        const cur = k === 'fillColor' ? panelFill(e)
+          : k === 'stroke' ? (e.stroke || hexA(e.accent || '#7ea6ff', 0.5))
+          : k === 'fill' ? (e.fill || 'rgba(10,10,10,.55)')
+          : k === 'titleColor' ? (e.titleColor || '#f5f5f5')
+          : k === 'subColor' ? (e.subColor || '#a3a3a3')
+          : (e[k] || '#7ea6ff');
         openColorPicker(btn, cur, (val) => {
           if (k === 'fillColor') {
             const p = parseColor(val) || { r: 20, g: 28, b: 45, a: 1 };
@@ -2147,9 +2183,12 @@
           }
           const n = nodes.get(e.id);
           if (n) {
-            if (e.type === 'panel') n.style.background = panelFill(e);
+            if (k === 'stroke') { n.style.borderColor = val; n.style.setProperty('--accent', val); }
+            else if (k === 'fill') n.style.background = val;
+            else if (k === 'titleColor') { const t = n.querySelector('.title'); if (t) t.style.color = val; }
+            else if (k === 'subColor') { const sb = n.querySelector('.sub'); if (sb) sb.style.color = val; }
+            else if (e.type === 'panel') n.style.background = panelFill(e);
             else if (e.type === 'text') n.style.color = e.color;
-            else if (e.type === 'card') n.style.background = e[k] || '';
           }
           if (e.type === 'arrow') renderArrows();
           btn.querySelector('i').style.background = k === 'fillColor' ? panelFill(e) : (e[k] || 'transparent');
@@ -2776,6 +2815,15 @@
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
   }
 
+  // 卡片外阴影：与 SHADOW 档位一一对应
+  function applyShadow(ctx, lvl) {
+    const blur = [0, 8, 20, 36][lvl] || 0;
+    const dy = [0, 2, 6, 14][lvl] || 0;
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = blur;
+    ctx.shadowOffsetY = dy;
+  }
+
   // 制图角标：左上/右上必画，四角容器再加左下/右下
   function cornerTicks(ctx, x, y, w, h, len, color, all) {
     ctx.save();
@@ -2793,7 +2841,7 @@
   async function drawPanel(ctx, e) {
     const accent = e.accent || '#7ea6ff';
     rr(ctx, e, panelFill(e), e.stroke || hexA(accent, 0.5), 1);
-    cornerTicks(ctx, e.x + 6, e.y + 6, e.w - 12, e.h - 12, 11, hexA(accent, 0.85), true);
+    if (e.corners !== false) cornerTicks(ctx, e.x + 6, e.y + 6, e.w - 12, e.h - 12, 11, hexA(accent, 0.85), true);
     if (e.bg) {
       const im = await loadImg(e.bg);
       if (im) {
@@ -2834,8 +2882,23 @@
 
   async function drawCard(ctx, e) {
     const accent = e.accent || '#7ea6ff';
-    rr(ctx, e, e.fill || 'rgba(5,12,21,.55)', e.stroke || hexA(accent, 0.32), 1);
-    cornerTicks(ctx, e.x + 5, e.y + 5, e.w - 10, e.h - 10, 9, hexA(accent, 0.7), false);
+    const edge = e.stroke || hexA(accent, 0.32);
+    const fill = e.fill || 'rgba(5,12,21,.55)';
+    if (e.shadow) { ctx.save(); applyShadow(ctx, e.shadow); }
+    rr(ctx, e, fill, e.shadow ? null : edge, 1);
+    if (e.shadow) {                       // 描边单独画，避免阴影叠两层
+      ctx.restore();
+      ctx.beginPath();
+      ctx.roundRect(e.x, e.y, e.w, e.h, e.radius == null ? 10 : e.radius);
+      ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke();
+    }
+    if (e.corners !== false) cornerTicks(ctx, e.x + 5, e.y + 5, e.w - 10, e.h - 10, 9, hexA(e.stroke || accent, 0.7), false);
+
+    const ts = clampNum(e.titleSize, 23, 8, 96);
+    const ss = clampNum(e.subSize, 15, 8, 72);
+    const tc = e.titleColor || '#f5f5f5';
+    const sc = e.subColor || '#a3a3a3';
+    const lh1 = Math.round(ts * 1.22), lh2 = Math.round(ss * 1.24);
     const padL = 22, padR = 22;
 
     if (e.layout === 'stack') {
@@ -2844,26 +2907,26 @@
       ctx.textAlign = 'center';
       const cx = e.x + e.w / 2;
       const maxW = e.w - 36;
-      ctx.font = `600 24px ${FONT}`;
+      ctx.font = `600 ${ts}px ${FONT}`;
       const l1 = wrapText(ctx, e.title || '', maxW);
-      ctx.font = `400 16px ${FONT}`;
+      ctx.font = `400 ${ss}px ${FONT}`;
       const l2 = e.sub ? wrapText(ctx, e.sub, maxW) : [];
       const gapIcon = im ? 14 : 0;
       const hIcon = im ? iconSize : 0;
-      const h1 = l1.length * 28;
-      const h2 = l2.length * 19;
+      const h1 = l1.length * lh1;
+      const h2 = l2.length * lh2;
       const total = hIcon + gapIcon + h1 + (l2.length ? 8 : 0) + h2;
       let ty = e.y + (e.h - total) / 2;
       if (im) { ctx.drawImage(im, cx - iconSize / 2, ty, iconSize, iconSize); ty += iconSize + gapIcon; }
       ctx.textBaseline = 'top';
-      ctx.fillStyle = '#eef4ff';
-      ctx.font = `600 24px ${FONT}`;
-      for (const line of l1) { ctx.fillText(line, cx, ty); ty += 28; }
+      ctx.fillStyle = tc;
+      ctx.font = `600 ${ts}px ${FONT}`;
+      for (const line of l1) { ctx.fillText(line, cx, ty); ty += lh1; }
       if (l2.length) {
         ty += 8;
-        ctx.fillStyle = '#7d90ad';
-        ctx.font = `400 16px ${FONT}`;
-        for (const line of l2) { ctx.fillText(line, cx, ty); ty += 19; }
+        ctx.fillStyle = sc;
+        ctx.font = `400 ${ss}px ${FONT}`;
+        for (const line of l2) { ctx.fillText(line, cx, ty); ty += lh2; }
       }
       ctx.textAlign = 'left';
       return;
@@ -2875,28 +2938,24 @@
       const im = await loadImg(e.icon);
       if (im) ctx.drawImage(im, x, cy - 17, 34, 34);
       x += 34 + 12;
-    } else if (e.dot !== false) {
-      ctx.strokeStyle = accent; ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, cy - 3.5, 7, 7);
-      x += 7 + 12;
     }
     const maxW = e.x + e.w - padR - x;
     const gap = e.sub ? 6 : 0;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
-    ctx.font = `600 24px ${FONT}`;
+    ctx.font = `600 ${ts}px ${FONT}`;
     const l1 = wrapText(ctx, e.title || '', maxW);
-    ctx.font = `400 16px ${FONT}`;
+    ctx.font = `400 ${ss}px ${FONT}`;
     const l2 = e.sub ? wrapText(ctx, e.sub, maxW) : [];
-    const h1 = l1.length * 28, h2 = l2.length * 19;
+    const h1 = l1.length * lh1, h2 = l2.length * lh2;
     let ty = cy - (h1 + gap + h2) / 2;
-    ctx.fillStyle = '#eef4ff';
-    ctx.font = `600 24px ${FONT}`;
-    for (const line of l1) { ctx.fillText(line, x, ty); ty += 28; }
+    ctx.fillStyle = tc;
+    ctx.font = `600 ${ts}px ${FONT}`;
+    for (const line of l1) { ctx.fillText(line, x, ty); ty += lh1; }
     ty += gap;
-    ctx.fillStyle = '#7d90ad';
-    ctx.font = `400 16px ${FONT}`;
-    for (const line of l2) { ctx.fillText(line, x, ty); ty += 19; }
+    ctx.fillStyle = sc;
+    ctx.font = `400 ${ss}px ${FONT}`;
+    for (const line of l2) { ctx.fillText(line, x, ty); ty += lh2; }
   }
 
   function drawText(ctx, e) {
