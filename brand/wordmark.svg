@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" fill="none">
+  <g transform="translate(6 12) scale(2.5)">
+    <rect x="1.1" y="4.1" width="8.6" height="7.8" rx="1.7" stroke="#e6e6e6" stroke-width="1.5"/>
+    <path d="M9.7 8h3.4" stroke="#e6e6e6" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="14" cy="8" r="1.55" fill="#e6e6e6"/>
+  </g>
+  <text x="56" y="30" fill="#f2f2f2" font-family="-apple-system, BlinkMacSystemFont, system-ui, Segoe UI, sans-serif"
+        font-size="20" font-weight="600" letter-spacing="2.4">架构板</text>
+  <text x="57" y="47" fill="#7d7d7d" font-family="ui-monospace, monospace"
+        font-size="8.6" letter-spacing="3.4">ARCHBOARD</text>
+</svg>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-app="archboard" data-author="maidong" data-source="github.com/Mr-Maidong">
+<head>
+<meta charset="utf-8" />
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml" />
+<meta name="theme-color" content="#0a0a0a" />
+<meta name="description" content="架构板 —— 用细线框的方式精确排布系统架构图，纯前端、离线可用、一键导出 2 倍图。" />
+<meta name="author" content="maidong" />
+<meta name="generator" content="Archboard · maidong" />
+<meta name="copyright" content="© maidong · github.com/Mr-Maidong · 15557111679@163.com" />
+<!--
+  ───────────────────────────────────────────────────────────────────────────
+  架构板 Archboard · 设计 / 实现：maidong
+  GitHub：github.com/Mr-Maidong     邮箱：15557111679@163.com
+
+  这一份是手写的前端源码，没有用任何框架、没有构建产物：
+  同目录下 app.js（逻辑）、app.css（样式）、brand/（图记）就是全部。
+
+  如果这个页面出现在别处而作者栏不是 maidong，那是被别人整体搬走的。
+  ───────────────────────────────────────────────────────────────────────────
+-->
+  <title>架构板 · Archboard</title>
+<link rel="stylesheet" href="app.css" />
+</head>
+<body>
+<header id="bar">
+  <div class="group">
+    <strong class="brand">
+      <svg class="mark" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="1.1" y="4.1" width="8.6" height="7.8" rx="1.7" stroke="currentColor" stroke-width="1.7"/>
+        <path d="M9.7 8h3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        <circle cx="14" cy="8" r="1.6" fill="currentColor"/>
+      </svg>架构板<em class="en">ARCHBOARD</em></strong>
+  </div>
+
+  <div class="group">
+    <button data-tool="select" class="tool active" title="选择 / 移动 (V · ⌘1)">选择</button>
+    <button data-tool="panel" class="tool" title="层带面板 (P · ⌘2)">面板</button>
+    <button data-tool="card" class="tool" title="卡片 (C · ⌘3)">卡片</button>
+    <button data-tool="text" class="tool" title="文字 (T · ⌘4)">文字</button>
+    <button data-tool="image" class="tool" title="图片 / 图标 (I · ⌘5)">图片</button>
+    <button data-tool="arrow" class="tool" title="连线 (A · ⌘6)：点起点元素，再点终点元素">连线</button>
+    <button data-tool="canvas" class="tool" title="画布 (N · ⌘7)：在空白处拖出一个新的画布区域">画布</button>
+  </div>
+
+  <div class="group">
+    <button id="groupBtn" title="分组 (⌘G)：把选中的多个元素合成一个图层">分组</button>
+    <button id="ungroupBtn" title="取消分组 (⌘⇧G)">解组</button>
+  </div>
+
+  <div class="group" id="alignGroup">
+    <button data-align="left" title="左对齐"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v12"/><path d="M6.5 5H13M6.5 11H10"/></svg></button>
+    <button data-align="cx" title="水平居中"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v12"/><path d="M2.6 5h10.8M4.8 11h6.4"/></svg></button>
+    <button data-align="right" title="右对齐"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2v12"/><path d="M3 5h6.5M6 11h6.5"/></svg></button>
+    <span class="sep"></span>
+    <button data-align="top" title="顶对齐"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12"/><path d="M5 6.5V13M11 6.5V10"/></svg></button>
+    <button data-align="cy" title="垂直居中"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h12"/><path d="M5 3v10M11 5v6"/></svg></button>
+    <button data-align="bottom" title="底对齐"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13h12"/><path d="M5 3v6.5M11 6v6.5"/></svg></button>
+    <span class="sep"></span>
+    <button data-align="dh" title="水平等距"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3.2v9.6M8 3.2v9.6M12 3.2v9.6"/></svg></button>
+    <button data-align="dv" title="垂直等距"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 4h9.6M3.2 8h9.6M3.2 12h9.6"/></svg></button>
+  </div>
+
+  <div class="group">
+    <button id="undoBtn" title="撤销 (⌘Z)"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5.6 6H9a3.6 3.6 0 1 1 0 7.2H6"/><path d="M7.8 3.4 5.2 6l2.6 2.6"/></svg></button>
+    <button id="redoBtn" title="重做 (⌘⇧Z)"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 6H7a3.6 3.6 0 1 0 0 7.2h3"/><path d="M8.2 3.4 10.8 6 8.2 8.6"/></svg></button>
+    <button id="dupBtn" title="复制 (⌘D)"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5.6" y="5.6" width="7.8" height="7.8" rx="1.6"/><path d="M10.4 3.4H4.2A1.6 1.6 0 0 0 2.6 5v6.2"/></svg></button>
+    <button id="delBtn" title="删除 (Delete)"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.2h10.4"/><path d="M6.4 4.2V2.6h3.2v1.6"/><path d="M4.5 4.2l.7 9.2h5.6l.7-9.2"/><path d="M6.8 6.8v4.4M9.2 6.8v4.4"/></svg></button>
+  </div>
+
+  <div class="group">
+    <button id="snapBtn" class="active" title="对齐吸附开关（拖动时按住 Alt 可临时关闭）">吸附</button>
+  </div>
+
+  <div class="group right">
+    <button id="importBtn" title="导入工程包 .archboard 或 .json（也可以直接把文件拖进窗口）"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 9.9v2.5a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V9.9"/><path d="M8 2.4v6.5"/><path d="M5.3 6.2 8 8.9l2.7-2.7"/></svg></button>
+    <input type="file" id="jsonInput" hidden />
+    <button id="jsonBtn" title="导出工程包 .archboard（图片按二进制存，体积最小）；⇧ 点击导出 JSON；⌥ 点击导出 PNG"><svg class="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 9.9v2.5a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V9.9"/><path d="M8 8.8V2.3"/><path d="M5.3 5.1 8 2.4l2.7 2.7"/></svg></button>
+  </div>
+</header>
+<div id="dropHint"><span>松开即导入工程包</span></div>
+<div id="toast"></div>
+
+
+<aside id="layers">
+  <div class="lp-head">
+    <span class="lp-title">图层</span>
+    <span class="lp-count" id="layerCount"></span>
+  </div>
+  <div class="lp-body" id="layerTree"></div>
+  <div class="lp-foot">
+    <button id="newCanvasBtn" title="新建画布">+ 画布</button>
+    <button id="layerFitBtn" title="缩放到全部内容">适应</button>
+  </div>
+</aside>
+
+<main id="viewport">
+  <div id="gridDots" class="grid-layer"></div>
+  <div id="gridLines" class="grid-layer"></div>
+  <div id="stage">
+    <div id="canvasLayer"></div>
+    <svg id="arrows" xmlns="http://www.w3.org/2000/svg">
+      <defs id="arrowDefs"></defs>
+      <g id="arrowLayer"></g>
+      <g id="arrowPreviewLayer"></g>
+    </svg>
+    <div id="layer"></div>
+    <div id="guides"></div>
+  </div>
+  <div id="marquee"></div>
+  <div id="anchors"></div>
+
+</main>
+
+<aside id="rightrail">
+  <aside id="inspector">
+    <div class="ins-empty">选中一个元素后在这里调整<br /><span>拖动可移动，拖角可缩放；<br />拖动时会出现对齐参考线。</span></div>
+  </aside>
+  <div id="mmBlock">
+    <div class="rr-head">鸟瞰图<span class="rr-key">M</span></div>
+    <div id="minimap" title="鸟瞰图：点击或拖动快速定位（M 键显示/隐藏）">
+      <canvas id="mmCanvas"></canvas>
+    </div>
+  </div>
+</aside>
+
+<footer id="hint">
+  <span class="hint">滚轮缩放</span>
+  <span class="hint">空格 / 中键平移</span>
+  <span class="hint">Shift 多选</span>
+  <span class="hint">方向键微调</span>
+  <span class="hint">⌘D 复制</span>
+  <span class="hint">双击图层名重命名</span>
+  <span class="hint">⌘\ 图层栏</span>
+  <span class="hint">拖名条移画布</span>
+  <span class="hint">M 鸟瞰图</span>
+  <span id="status"></span>
+  <span id="readout">
+    <span class="cell">X<b id="rdX">0</b></span>
+    <span class="cell">Y<b id="rdY">0</b></span>
+    <span class="cell">选中<b id="rdS">0</b></span>
+    <span class="cell">元素<b id="rdE">0</b></span>
+  </span>
+  <span class="zoomgrp">
+    <button id="zoomOut" title="缩小">−</button>
+    <span id="zoomLabel" class="zoom" title="点击缩放到全部内容">100%</span>
+    <button id="zoomIn" title="放大">+</button>
+  </span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
