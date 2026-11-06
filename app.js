@@ -1,4 +1,4 @@
-/* 架构板 Archboard —— 单文件实现（无依赖）
+/* 无边画板 Boundless —— 单文件实现（无依赖）
  * 作者：maidong · github.com/Mr-Maidong · 15557111679@163.com
  * 模型：elements 数组，坐标为画布逻辑坐标（默认 2560 x 1160）
  * 渲染：DOM 定位 + 一层 SVG 画箭头
@@ -11,7 +11,7 @@
 
   // 出处信息：写进导出文件与控制台，界面里不显示
   const AUTHOR = Object.freeze({
-    app: 'Archboard',
+    app: 'Boundless',
     name: 'maidong',
     github: 'Mr-Maidong',
     email: '15557111679@163.com',
@@ -40,7 +40,7 @@
   function checkSig() {
     const want = SIG.slice(6);
     const got = fnv1a(SIG_SOURCE);
-    if (got !== want) console.warn('[Archboard] 出处指纹不匹配：', SIG_SOURCE, '→', got, '≠', want);
+    if (got !== want) console.warn('[Boundless] 出处指纹不匹配：', SIG_SOURCE, '→', got, '≠', want);
     return got === want;
   }
 
@@ -2758,7 +2758,7 @@
         _meta: { app: AUTHOR.app, author: AUTHOR.name, github: AUTHOR.github, email: AUTHOR.email, at: new Date().toISOString() },
         elements: state.elements, bg: state.bg, canvases: state.canvases, layers: state.layers,
       }, null, 1)], { type: 'application/json' });
-      downloadBlob(blob, `架构板-${stamp()}.json`);
+      downloadBlob(blob, `无边画板-${stamp()}.json`);
       setStatus('已导出 JSON（图片以 base64 内嵌）');
       setTimeout(() => setStatus(''), 2200);
       return;
@@ -3595,7 +3595,7 @@
     const entries = [
       { name: 'meta.json', compress: true, text: JSON.stringify({
         app: 'archboard', version: AUTHOR.version, at: new Date().toISOString(),
-        generator: `Archboard by ${AUTHOR.name}`,
+        generator: `Boundless by ${AUTHOR.name}`,
         author: AUTHOR.name, github: AUTHOR.github, email: AUTHOR.email, homepage: AUTHOR.homepage,
         elements: (model.elements || []).length, assets: packed.assets.size,
       }, null, 1) },
@@ -3610,7 +3610,7 @@
       setStatus('正在打包…');
       const { entries, count } = buildProjectZip();
       const blob = await makeZip(entries);
-      downloadBlob(blob, `架构板-${stamp()}.archboard`);
+      downloadBlob(blob, `无边画板-${stamp()}.archboard`);
       toast(`已导出工程包 · ${count} 张图片 · ${(blob.size / 1048576).toFixed(2)} MB`);
     } catch (e) {
       toast('导出失败：' + (e && e.message ? e.message : e), 4000);
@@ -3936,12 +3936,12 @@
     bindChrome();
     checkSig();
     console.log(
-      '%c 架构板 Archboard %c maidong · github.com/Mr-Maidong · ' + SIG,
+      '%c 无边画板 Boundless %c maidong · github.com/Mr-Maidong · ' + SIG,
       'background:#e6e6e6;color:#0a0a0a;padding:2px 7px;border-radius:2px;font-weight:600;letter-spacing:.02em',
       'color:#7d7d7d'
     );
     console.log(
-      '%c 智能体接口 %c archboard.help() 取工具清单 · archboard.guide() 取操作提示',
+      '%c 智能体接口 %c boundless.help() 取工具清单 · boundless.guide() 取操作提示',
       'background:#2a2a2a;color:#e6e6e6;padding:2px 7px;border-radius:2px;font-weight:600',
       'color:#7d7d7d'
     );
@@ -4061,12 +4061,12 @@
     ];
 
     function help() {
-      return ok({ app: 'Archboard', version: AG_VERSION, coordinate: '画布像素，原点在画布左上角，y 向下；元素以左上角定位', tools: TOOLS });
+      return ok({ app: 'Boundless', version: AG_VERSION, coordinate: '画布像素，原点在画布左上角，y 向下；元素以左上角定位', tools: TOOLS });
     }
 
     function guide() {
       return ok({ text: [
-        '架构板智能体接口 v' + AG_VERSION,
+        '无边画板智能体接口 v' + AG_VERSION,
         '· 调用方式：archboard.call("工具名", 参数)，或直接 archboard.工具名(参数)，返回 JSON',
         '· 坐标单位是画布像素，元素以左上角定位，y 向下；尺寸建议：层带面板 1800×140、卡片 390×92、间距 24、文字 420×44',
         '· 开始前先 archboard.help() 取清单、archboard.state() 看现状',
@@ -4340,8 +4340,9 @@
     return api;
   })();
 
-  window.archboard = archboard;
-  window.agent = archboard;          // 简写别名
+  window.archboard = archboard;      // 保留原名：文档、脚本、旧代码都指着它
+  window.boundless = archboard;      // 新名字的别名
+  window.agent = archboard;          // 通用简写
 
   boot();
 })();

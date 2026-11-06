@@ -1,5 +1,5 @@
 appId: com.maidong.archboard
-productName: Archboard          # 用 ASCII：文件名、体积统计、更新包路径都会用到
+productName: Boundless          # 用 ASCII：文件名、体积统计、更新包路径都会用到
 copyright: © maidong · github.com/Mr-Maidong
 
 directories:
@@ -18,12 +18,12 @@ files:
 asar: true
 compression: maximum
 
-# 双击 .archboard 直接用架构板打开。
+# 双击 .archboard 直接用无边画板打开。
 # mac 会写进 Info.plist 的 CFBundleDocumentTypes，Windows 会注册到注册表。
 fileAssociations:
   - ext: archboard
-    name: Archboard 工程
-    description: 架构板工程包
+    name: Boundless 工程
+    description: 无边画板工程包
     role: Editor
     mimeType: application/x-archboard
 
@@ -52,4 +52,4 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false   # 卸载不删工程数据
-  shortcutName: 架构板
+  shortcutName: 无边画板

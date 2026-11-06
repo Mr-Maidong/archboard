@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * 架构板 · Archboard —— Electron 桌面外壳
+ * 无边画板 · Boundless —— Electron 桌面外壳
  *
  * 这个文件的职责只有三件事，前端代码一行都没有改：
  *
@@ -115,13 +115,13 @@ function buildMenu() {
     template.push({
       label: app.name,
       submenu: [
-        { role: 'about', label: '关于 架构板' },
+        { role: 'about', label: '关于 无边画板' },
         { type: 'separator' },
-        { role: 'hide', label: '隐藏 架构板' },
+        { role: 'hide', label: '隐藏 无边画板' },
         { role: 'hideOthers', label: '隐藏其他' },
         { role: 'unhide', label: '显示全部' },
         { type: 'separator' },
-        { role: 'quit', label: '退出 架构板' },
+        { role: 'quit', label: '退出 无边画板' },
       ],
     });
   }
@@ -172,7 +172,7 @@ function createWindow() {
     minHeight: 720,
     show: false,
     backgroundColor: '#0a0a0a',
-    title: '架构板',
+    title: '无边画板',
     autoHideMenuBar: process.platform !== 'darwin',
     // 保持默认标题栏：工具栏贴着左上角，红绿灯压过去会盖住「选择」按钮
     webPreferences: {
@@ -291,9 +291,9 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     nativeTheme.themeSource = 'dark';       // 原生对话框、滚动条跟深色界面对齐
     app.setAboutPanelOptions({
-      applicationName: '架构板',
+      applicationName: '无边画板',
       applicationVersion: app.getVersion(),
-      credits: 'Archboard · maidong',
+      credits: 'Boundless · maidong',
       copyright: '© maidong · github.com/Mr-Maidong',
     });
 
@@ -307,9 +307,9 @@ if (!gotLock) {
     const fromArgv = fileFromArgv(process.argv);
     if (fromArgv) queueOpen(fromArgv);
 
-    // 自检钩子：ARCHBOARD_SMOKE=<输出目录> electron . 会截图并打印诊断后退出。
+    // 自检钩子：BOUNDLESS_SMOKE=<输出目录> electron . 会截图并打印诊断后退出。
     // 只在打包之外的环境用，用来验证协议、IndexedDB、CompressionStream 是否正常。
-    if (process.env.ARCHBOARD_SMOKE) runSmoke(win, process.env.ARCHBOARD_SMOKE);
+    if (process.env.BOUNDLESS_SMOKE) runSmoke(win, process.env.BOUNDLESS_SMOKE);
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

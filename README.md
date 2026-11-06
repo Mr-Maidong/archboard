@@ -1,4 +1,4 @@
-# 架构板 · Archboard
+# 无边画板 · Boundless
 
 用细线框精确排布系统架构图的前端工具。纯静态、零依赖、离线可用，数据存在浏览器本地，不需要后端，也不需要构建。
 
@@ -24,7 +24,7 @@
 
 画架构图常见的两种方式都不太顺手：拖拽式白板（tldraw / Excalidraw）对不齐、线条粗细不一；画图软件（Figma / draw.io）功能够但重，为了一张图要开一整个设计工具。
 
-架构板只做一件事：**在无限画布上，用统一线宽的细线框，快速摆出一张能直接交付的架构图**。所有元素都吸附网格与彼此，导出的图 2 倍分辨率，字体和描边都是矢量级的干净。
+无边画板只做一件事：**在无限画布上，用统一线宽的细线框，快速摆出一张能直接交付的架构图**。所有元素都吸附网格与彼此，导出的图 2 倍分辨率，字体和描边都是矢量级的干净。
 
 ## 二、特点
 
@@ -89,14 +89,14 @@ Chrome / Edge 89+、Safari 16.4+。依赖 `CompressionStream`（工程包压缩�
 ```bash
 npm install          # 装 electron 与 electron-builder，仅打包时需要
 npm start            # 以桌面应用方式运行
-npm run dist:mac     # → dist/Archboard-1.0.0-arm64.dmg（只出本机架构）
+npm run dist:mac     # → dist/Boundless-1.0.0-arm64.dmg（只出本机架构）
 npm run dist:mac:x64 # 需要 Intel 包时才跑
-npm run dist:win     # → dist/Archboard-1.0.0-x64.exe（NSIS 安装包，建议在 Windows 或 Actions 上跑）
+npm run dist:win     # → dist/Boundless-1.0.0-x64.exe（NSIS 安装包，建议在 Windows 或 Actions 上跑）
 ```
 
 默认只打当前机器架构的包：Apple Silicon 上只出 `arm64`，不会顺带垫一个 x64 和两个 zip。要别的产物就显式指定。
 
-装了之后 `.archboard` 会注册成工程文件：双击直接在架构板里打开（macOS 走 `open-file` 事件，Windows 走「打开方式」）。实现上没给前端加接口——`main.js` 把文件字节挂在 `app://archboard/__open` 上，再在页面里造一个 `File` 触发 `drop`，走的完全是拖拽导入那条既有链路。
+装了之后 `.archboard` 会注册成工程文件：双击直接在无边画板里打开（macOS 走 `open-file` 事件，Windows 走「打开方式」）。实现上没给前端加接口——`main.js` 把文件字节挂在 `app://archboard/__open` 上，再在页面里造一个 `File` 触发 `drop`，走的完全是拖拽导入那条既有链路。
 
 网页版一行命令都不用动：目录根仍然是 `index.html`，`npx wrangler pages deploy .` 照旧。
 
@@ -248,9 +248,9 @@ npm run dist:win     # → dist/Archboard-1.0.0-x64.exe（NSIS 安装包，建�
 
 | 操作 | 产物 | 说明 |
 |---|---|---|
-| 点击「导出」 | `架构板-<时间>.archboard` | ZIP 工程包：`meta.json` + `model.json` + `assets/`，图片按二进制存，体积最小 |
-| `⇧` 点击 | `架构板-<时间>.json` | 纯 JSON，图片以 base64 内嵌，便于 diff / 版本管理 |
-| `⌥` 点击 | `架构板-<时间>.png` | 2 倍分辨率位图；选中某块画布时只导出该画布 |
+| 点击「导出」 | `无边画板-<时间>.archboard` | ZIP 工程包：`meta.json` + `model.json` + `assets/`，图片按二进制存，体积最小 |
+| `⇧` 点击 | `无边画板-<时间>.json` | 纯 JSON，图片以 base64 内嵌，便于 diff / 版本管理 |
+| `⌥` 点击 | `无边画板-<时间>.png` | 2 倍分辨率位图；选中某块画布时只导出该画布 |
 
 **导入**：点右上角导入按钮选文件，或者直接把 `.archboard` / `.json` **拖进窗口**。
 导入会替换当前工程（可 `⌘Z` 撤销）。
